@@ -1,0 +1,32 @@
+{
+  "email_901": {
+    "category": "SI_REQUEST",
+    "status": "",
+    "review_reason": null,
+    "defect_fields": [],
+    "has_defect": false,
+    "confidence": 0.905,
+    "source": "model",
+    "model_category": "SI_REQUEST"
+  },
+  "email_902": {
+    "category": "SPAM",
+    "status": "",
+    "review_reason": null,
+    "defect_fields": [],
+    "has_defect": false,
+    "confidence": 0.9863,
+    "source": "model",
+    "model_category": "SPAM"
+  },
+  "email_903": {
+    "category": "INVOICE_QUERY",
+    "status": "",
+    "review_reason": null,
+    "defect_fields": [],
+    "has_defect": false,
+    "confidence": 0.9831,
+    "source": "model",
+    "model_category": "INVOICE_QUERY"
+  }
+}
