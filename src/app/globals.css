@@ -1,0 +1,101 @@
+@import "tailwindcss";
+
+/* Fonts reference other CSS variables, so they must be inlined */
+@theme inline {
+  --font-sans: var(--font-plex), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-grotesk), ui-sans-serif, system-ui, sans-serif;
+}
+
+/*
+ * WayBoxAI design tokens (light). Not inlined on purpose: utilities like
+ * `bg-paper` read var(--color-paper), so the dark block below can swap them.
+ */
+@theme {
+  --color-ink: #12172b;
+  --color-ink-soft: #5b6072;
+  --color-paper: #faf7f2;
+  --color-paper-2: #f1ece3;
+  --color-line: #e4ddd0;
+  --color-copper: #c1652f;
+
+  /* cards, headers and panels that sit on the paper */
+  --color-surface: #ffffff;
+  /* always-dark bands (landing "How it works", sign-in side panel) */
+  --color-navy: #12172b;
+  --color-navy-2: #1e2540;
+  /* primary button: dark fill on light, light fill on dark */
+  --color-btn: #12172b;
+  --color-btn-hover: #1e2540;
+  --color-on-btn: #ffffff;
+
+  --color-good: #2f8f5b;
+  --color-good-bg: #e4f3ea;
+  --color-bad: #c4463a;
+  --color-bad-bg: #fbe7e4;
+  --color-warn: #b9791e;
+  --color-warn-bg: #fbeedc;
+  --color-mute: #6b7280;
+  --color-mute-bg: #eef0f2;
+}
+
+html[data-theme="dark"] {
+  --color-ink: #eceef4;
+  --color-ink-soft: #9ba2b6;
+  --color-paper: #0e1220;
+  --color-paper-2: #1a2036;
+  --color-line: #2b3250;
+  --color-copper: #d9773f;
+
+  --color-surface: #151a2b;
+  --color-navy: #171d36;
+  --color-navy-2: #222a4b;
+  --color-btn: #eceef4;
+  --color-btn-hover: #ffffff;
+  --color-on-btn: #12172b;
+
+  --color-good: #4cc38a;
+  --color-good-bg: #13301f;
+  --color-bad: #f0857a;
+  --color-bad-bg: #3a1b1b;
+  --color-warn: #e2a64f;
+  --color-warn-bg: #33270f;
+  --color-mute: #a3aab8;
+  --color-mute-bg: #232a3b;
+}
+
+html {
+  color-scheme: light;
+  scroll-behavior: smooth;
+  /* The landing header is sticky: keep #anchor targets from landing underneath it */
+  scroll-padding-top: 6rem;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+body {
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+}
+
+/* Scrollable, but with the scrollbar hidden */
+@utility no-scrollbar {
+  scrollbar-width: none;
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+:focus-visible {
+  outline: 2px solid var(--color-copper);
+  outline-offset: 2px;
+}
