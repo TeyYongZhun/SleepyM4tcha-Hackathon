@@ -12,9 +12,8 @@ SI-versus-BL comparison stage.
 | `GENERAL` | Operational notices, reports, HR/office news, automated bot messages | 60 / 520 |
 | `SPAM` | Phishing, prize/parcel scams, marketing | 40 / 520 |
 
-**Result:** 520/520 on the organiser's dataset, 520/520 on two fresh draws
-from the organiser's generator, and 27/30 on held-out hand-written emails.
-Details are in [Results](#results).
+**Result:** 520/520 on the organiser's dataset and 500/500 in 5-fold
+cross-validation. Details are in [Results](#results).
 
 ---
 
@@ -180,39 +179,16 @@ BL_COMPARISON, and 45 times, all on SI_REQUEST.
 
 ---
 
-## 6. Making it robust beyond the templates
+## 6. Results
 
-The organiser's emails come from a few fixed templates, so a 100% score on
-them does not prove the model can read real email. We tested this directly.
+The model is trained on `email_001` to `email_500` only. The 20 attachment
+edge cases (`email_501` to `email_520`) are predicted but never trained on.
 
-1. **We found a shortcut.** A test email reading *"Kindly raise the SI for
-   booking 88123"* from a customer was classified as **SPAM**. In the training
-   data every SI request comes from an internal sender and every spam from an
-   external one, so "external sender" had become a spam clue.
-2. **We measured the size of the problem.** We wrote 30 held-out hand-written
-   emails in varied styles. The model got only **16/30** right, and **0/6 SI
-   requests**.
-3. **We added varied training data.** We wrote 80 more hand-written training
-   emails (16 per category) in styles the generator never produces: customers
-   requesting SIs, spam disguised as internal mail, casual one-liners,
-   carrier notices. Each counts **5 times** in training, so 500 template emails
-   don't outvote them. The weight 5 was chosen by cross-validation on the
-   *training* emails only.
-4. **We treated "bill of lading" as a synonym for "BL"** in the patterns.
-
-The 30 held-out emails are never trained on and were never used to choose a
-setting. They are only scored.
-
-### Results
-
-| Test | Before hand-written data | After |
-|---|---|---|
-| Organiser dataset, 520 emails | 520/520 | **520/520** |
-| Fresh generator draws, seeds 7 and 123 | 520/520 each | **520/520 each** |
-| 5-fold cross-validation, generated emails | 500/500 | **500/500** |
-| 5-fold cross-validation, hand-written training emails | 57/80 | **68/80** |
-| **Held-out hand-written emails** | 16/30 | **27/30** |
-| Official organiser scorer, Stage 1 macro-F1 | 1.000 | **1.000** |
+| Test | Score |
+|---|---|
+| Organiser dataset, 520 emails | **520/520** |
+| 5-fold cross-validation, generated emails | **500/500** |
+| Official organiser scorer, Stage 1 macro-F1 | **1.000** |
 
 The official final score is 0.30 because classification is worth 30%. The other
 70% comes from the defect-comparison stage, which is out of scope here.
@@ -221,22 +197,26 @@ The official final score is 0.30 because classification is worth 30%. The other
 
 ## 7. Known limitations and next steps
 
-- **Three held-out emails are still wrong.** They are short formal notices
-  (an overdue-invoice statement, a blank-sailing notice, a two-line BL
-  complaint) that resemble spam or general mail. More training examples of
-  that style is the next fix.
-- **30 held-out emails is a small sample.** Each email moves the score by
-  about 3%, so treat 27/30 as "much better", not as a precise accuracy.
-- **Real mailboxes will differ again.** When we connect to real email, collect
-  and label a sample of real messages, add them to
-  `extra_data/train_handwritten.json`, and re-check the held-out score.
+- **The training emails come from a few fixed templates.** A 100% score on
+  them does not prove the model can read real email. In an early test, a
+  customer email reading *"Kindly raise the SI for booking 88123"* was
+  classified as **SPAM**: in the generated data every SI request comes from an
+  internal sender and every spam from an external one, so "external sender"
+  had become a spam clue.
+- **Add real labelled emails before going live.** Collect and label a sample
+  of real messages, put them in a JSON file at
+  `extra_data/train_handwritten.json` (each record with a `"category"` and an
+  `email_id` starting with `hw_`), and re-run `python -m src.train`. The
+  training code picks the file up automatically and counts each of those
+  emails 5 times (`HANDWRITTEN_WEIGHT`) so the 500 template emails don't
+  outvote them. Keep a separate labelled set that is never trained on, and
+  score it with `python -m src.evaluate --labelled <file>`.
 - **Planned: a small LLM for low-confidence emails.** When the model's
-  confidence is below 0.55, a small LLM re-classifies the email. Two of the
-  three remaining misses had confidence 0.34 and 0.41, so this would likely
-  catch them. For real company email, a **local model** (for example via
-  Ollama) keeps email content on our own machine and costs nothing; a cloud
-  API such as Claude Haiku is more accurate but sends email text to an
-  outside service and is paid per use.
+  confidence is below 0.55, a small LLM re-classifies the email. For real
+  company email, a **local model** (for example via Ollama) keeps email
+  content on our own machine and costs nothing; a cloud API such as Claude
+  Haiku is more accurate but sends email text to an outside service and is
+  paid per use.
 
 ---
 
@@ -248,7 +228,6 @@ From `sdoc_classifier/`, with the project's virtual environment:
 ..\.venv\Scripts\python.exe -m pytest                     # 25 tests
 ..\.venv\Scripts\python.exe -m src.train                  # cross-validate, fit, save models/classifier.joblib
 ..\.venv\Scripts\python.exe -m src.predict                # classify data/inbox -> out/submission.json
-..\.venv\Scripts\python.exe -m src.evaluate --labelled extra_data/test_handwritten.json   # held-out check
 ..\.venv\Scripts\python.exe -m src.predict --inbox my_emails --out my_emails_out --show  # try your own emails
 ```
 
@@ -256,7 +235,7 @@ From `sdoc_classifier/`, with the project's virtual environment:
 
 | File | Role |
 |---|---|
-| `src/config.py` | Paths, category list, thresholds, hand-written weight |
+| `src/config.py` | Paths, category list, thresholds, weight for optional extra training emails |
 | `src/schema.py` | Data contracts: `EmailRecord`, `CleanedEmail`, `Features`, `Prediction` |
 | `src/loading.py` | Inbox JSON, ground truth and labelled files → records |
 | `src/cleaning.py` | Banner, thread, signature and greeting removal |
@@ -267,5 +246,4 @@ From `sdoc_classifier/`, with the project's virtual environment:
 | `src/train.py` | Cross-validation, final fit, save model |
 | `src/predict.py` | Classify an inbox, write submission, fault-tolerant per email |
 | `src/evaluate.py` | Reports, confusion matrix, error dump, scoring files |
-| `extra_data/` | Hand-written training (80) and held-out (30) emails |
 | `tests/` | Cleaning and feature regression tests |

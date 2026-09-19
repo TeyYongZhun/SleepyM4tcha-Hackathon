@@ -29,24 +29,22 @@ python -m src.train               # 5-fold CV report, out/errors.json, fit + sav
 python -m src.predict             # out/submission.json + out/predictions.json (confidence, source)
 python -m src.evaluate            # CV only, no model saved   (--model svc to compare LinearSVC)
 python -m src.evaluate --predictions out/predictions.json   # score a prediction file vs ground truth
-python -m src.evaluate --labelled extra_data/test_handwritten.json   # saved model on the held-out hand-written set
+python -m src.evaluate --labelled <file.json>   # score the saved model on any labelled file
 python -m src.predict --inbox my_emails --out my_emails_out --show  # classify your own emails, one line each
 ```
 
-## Hand-written emails (`extra_data/`)
+## Training data
 
-The generated emails come from a few fixed templates. A model trained only
-on them scored 16/30 on hand-written emails, and 0/6 on SI requests, because
-it had learned template shortcuts such as "SI requests always come from an
-internal sender".
+The model trains on `email_001`–`email_500` only (5-fold CV: 500/500);
+`email_501`–`email_520` are attachment edge cases that are predicted but never
+trained on.
 
-- `train_handwritten.json`: 80 varied labelled emails, 16 per category, added to training
-  with sample weight `HANDWRITTEN_WEIGHT` (5).
-- `test_handwritten.json`: 30 *different* labelled emails, never trained on. Only
-  ever scored, never tuned against.
-
-To add more, append records with a `"category"` field and an `email_id` starting
-with `hw_` to the train file, then re-run `python -m src.train`.
+These emails come from a few fixed templates, so the model can pick up
+template shortcuts such as "SI requests always come from an internal sender".
+To add real or varied emails, create `extra_data/train_handwritten.json` with
+records that have a `"category"` field and an `email_id` starting with `hw_`,
+then re-run `python -m src.train`. If the file exists it is added to training
+with sample weight `HANDWRITTEN_WEIGHT` (5); if not, it is skipped.
 
 ## Layers
 
