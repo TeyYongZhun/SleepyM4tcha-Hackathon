@@ -29,3 +29,9 @@ next-env.d.ts
 .env
 .env*.local
 !.env.example
+
+# ...except the label classifier itself, which IS committed here so the repo
+# runs from a fresh clone with no training step. It matches
+# sdoc_classifier/models/classifier.joblib, which is committed for the same
+# reason. Retrain with: python src/train_label_classifier.py
+!models/label_classifier.joblib
