@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Paperclip, UserCheck } from "lucide-react";
@@ -58,6 +58,12 @@ export interface InboxPageData {
  * It shows one page (50 messages) and starts on page 1. Older / Newer fetch another
  * page from /api/inbox on demand. For Gmail the page holds every category, so the tab
  * filters the messages on screen; other sources send the tab's messages only.
+ *
+ * The tab filter (Gmail only) and the BL Comparison status filter both apply to
+ * whichever raw page is loaded, so a page can come back with nothing to show even
+ * though a later (or earlier) one has matches. Rather than leave that blank, the
+ * pane keeps stepping to the next page in the same direction until it finds one
+ * that isn't, or runs out -- see the auto-skip effect below.
  */
 export function InboxPane({
   slug,
@@ -76,6 +82,12 @@ export function InboxPane({
   const [error, setError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
+  // Which way the auto-skip effect below should keep stepping, and whether it's
+  // already walked every page in that direction for the current filter and found
+  // nothing (so it stops retrying instead of bouncing back and forth forever).
+  const seekDir = useRef<1 | -1>(1);
+  const exhausted = useRef(false);
+
   /** Optimistic: clears the dot right away, then tells the server so it sticks past a reload. */
   function markRead(id: string) {
     setView((v) => ({
@@ -89,7 +101,8 @@ export function InboxPane({
     }).catch(() => {}); // best-effort; the dot already cleared locally
   }
 
-  async function goTo(page: number) {
+  async function goTo(page: number, dir?: 1 | -1) {
+    if (dir) seekDir.current = dir;
     setLoading(true);
     setError(null);
     try {
@@ -114,6 +127,31 @@ export function InboxPane({
   const showStatusFilter = slug === "bl-comparison";
   const shown = showStatusFilter ? inCategory.filter((r) => matchesStatus(r, status)) : inCategory;
 
+  /** A pill was clicked: search again from page 1, forward. */
+  function changeStatus(next: StatusFilter) {
+    setStatus(next);
+    exhausted.current = false;
+    seekDir.current = 1;
+    if (view.page !== 1) goTo(1);
+  }
+
+  // Keeps stepping to the next page (in whichever direction we were already moving)
+  // while the loaded page has nothing this tab/filter wants, so "No messages" only
+  // ever shows once every page has been checked -- never for a gap with a match
+  // just beyond it. Gives up once it has walked off either end, and settles back
+  // on page 1 rather than stranding the view on whatever empty page it reached.
+  useEffect(() => {
+    if (loading || shown.length > 0 || exhausted.current) return;
+    const dir = seekDir.current;
+    if (dir === 1 ? view.hasNext : view.page > 1) {
+      goTo(view.page + dir);
+    } else {
+      exhausted.current = true;
+      if (view.page !== 1) goTo(1);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, status, loading]);
+
   const first = (view.page - 1) * PAGE_SIZE + 1;
   const range = `${first}-${first + view.rows.length - 1}`;
   const count = filterHere
@@ -135,7 +173,7 @@ export function InboxPane({
         </h2>
         {showStatusFilter && (
           <div className="mt-2">
-            <StatusFilterButtons value={status} onChange={setStatus} />
+            <StatusFilterButtons value={status} onChange={changeStatus} />
           </div>
         )}
       </div>
@@ -225,10 +263,22 @@ export function InboxPane({
             {loading ? "Loading…" : `Page ${view.page}`}
           </span>
           <div className="flex gap-1.5">
-            <PagerButton disabled={loading || view.page <= 1} onClick={() => goTo(view.page - 1)}>
+            <PagerButton
+              disabled={loading || view.page <= 1}
+              onClick={() => {
+                exhausted.current = false;
+                goTo(view.page - 1, -1);
+              }}
+            >
               <ArrowLeft size={15} strokeWidth={2.25} aria-hidden /> Newer
             </PagerButton>
-            <PagerButton disabled={loading || !view.hasNext} onClick={() => goTo(view.page + 1)}>
+            <PagerButton
+              disabled={loading || !view.hasNext}
+              onClick={() => {
+                exhausted.current = false;
+                goTo(view.page + 1, 1);
+              }}
+            >
               Older <ArrowRight size={15} strokeWidth={2.25} aria-hidden />
             </PagerButton>
           </div>
