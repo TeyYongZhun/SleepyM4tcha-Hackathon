@@ -87,7 +87,14 @@ export function InboxPane({
 
   const category = getCategoryBySlug(slug)?.category;
   const filterHere = !view.filtered && !!category;
-  const shown = filterHere ? view.rows.filter((r) => r.category === category) : view.rows;
+  const inCategory = filterHere ? view.rows.filter((r) => r.category === category) : view.rows;
+
+  // Only BL Comparison carries a verdict worth filtering on -- the other tabs
+  // never set mismatchedFields/reviewReason, so a status filter there would do nothing.
+  const [status, setStatus] = useState<StatusFilter>("all");
+  const showStatusFilter = slug === "bl-comparison";
+  const shown = showStatusFilter ? inCategory.filter((r) => matchesStatus(r, status)) : inCategory;
+
   const first = (view.page - 1) * PAGE_SIZE + 1;
   const range = `${first}-${first + view.rows.length - 1}`;
   const count = filterHere
@@ -104,9 +111,12 @@ export function InboxPane({
       }`}
     >
       <div className="shrink-0 px-[18px] pt-3 pb-1">
-        <h2 className="text-sm font-semibold">
-          {title} <span className="font-normal text-ink-soft">· {count}</span>
-        </h2>
+        <div className="flex items-center justify-between gap-2">
+          <h2 className="text-sm font-semibold">
+            {title} <span className="font-normal text-ink-soft">· {count}</span>
+          </h2>
+          {showStatusFilter && <StatusFilterButtons value={status} onChange={setStatus} />}
+        </div>
       </div>
 
       {/* Still scrolls (wheel, touch, keys); the scrollbar itself is hidden.
@@ -204,6 +214,48 @@ export function InboxPane({
 function mismatchSummary(fields: string[]): string {
   if (fields.length === 0) return "";
   return fields.length <= 2 ? ` · ${fields.join(", ")}` : ` · ${fields.length} fields`;
+}
+
+type StatusFilter = "all" | "mismatch" | "review";
+
+const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "mismatch", label: "Mismatch" },
+  { value: "review", label: "Needs review" },
+];
+
+function matchesStatus(row: InboxRow, status: StatusFilter): boolean {
+  if (status === "mismatch") return !!row.mismatchedFields;
+  if (status === "review") return !!row.reviewReason;
+  return true;
+}
+
+function StatusFilterButtons({
+  value,
+  onChange,
+}: {
+  value: StatusFilter;
+  onChange: (v: StatusFilter) => void;
+}) {
+  return (
+    <div role="group" aria-label="Filter by status" className="flex shrink-0 gap-1">
+      {STATUS_FILTERS.map((f) => (
+        <button
+          key={f.value}
+          type="button"
+          aria-pressed={value === f.value}
+          onClick={() => onChange(f.value)}
+          className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
+            value === f.value
+              ? "border-ink bg-ink text-paper"
+              : "border-line text-ink-soft hover:bg-paper-2"
+          }`}
+        >
+          {f.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 function PagerButton({
