@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ArrowRight, Paperclip, UserCheck } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Paperclip, UserCheck } from "lucide-react";
 import { getCategoryBySlug, type CategorySlug } from "@/lib/categories";
 import { PAGE_SIZE } from "@/lib/paging";
 import { REVIEW_REASON_SHORT } from "@/lib/shipment";
@@ -31,6 +31,12 @@ export interface InboxRow {
    * name (empty if the source didn't say which). Absent = agree, or not known.
    */
   mismatchedFields?: string[];
+  /**
+   * Set only when the SI and BL were compared and every field agreed. Absent
+   * (with reviewReason and mismatchedFields also absent) means there's no BL
+   * attached yet to check -- just a request for one.
+   */
+  matched?: boolean;
 }
 
 /** One page of the inbox, as /api/inbox returns it. */
@@ -124,12 +130,14 @@ export function InboxPane({
       }`}
     >
       <div className="shrink-0 px-[18px] pt-3 pb-1">
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-sm font-semibold">
-            {title} <span className="font-normal text-ink-soft">· {count}</span>
-          </h2>
-          {showStatusFilter && <StatusFilterButtons value={status} onChange={setStatus} />}
-        </div>
+        <h2 className="text-sm font-semibold">
+          {title} <span className="font-normal text-ink-soft">· {count}</span>
+        </h2>
+        {showStatusFilter && (
+          <div className="mt-2">
+            <StatusFilterButtons value={status} onChange={setStatus} />
+          </div>
+        )}
       </div>
 
       {/* Still scrolls (wheel, touch, keys); the scrollbar itself is hidden.
@@ -174,6 +182,12 @@ export function InboxPane({
                   <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-bad-bg px-2 py-0.5 text-[10px] font-semibold text-bad">
                     <AlertTriangle size={11} aria-hidden />
                     Mismatch{mismatchSummary(row.mismatchedFields)}
+                  </span>
+                )}
+                {row.matched && (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-good-bg px-2 py-0.5 text-[10px] font-semibold text-good">
+                    <CheckCircle2 size={11} aria-hidden />
+                    Match
                   </span>
                 )}
                 {row.reviewReason && (
@@ -230,18 +244,30 @@ function mismatchSummary(fields: string[]): string {
   return fields.length <= 2 ? ` · ${fields.join(", ")}` : ` · ${fields.length} fields`;
 }
 
-type StatusFilter = "all" | "mismatch" | "review";
+type StatusFilter = "all" | "mismatch" | "review" | "draft" | "match";
 
 const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "mismatch", label: "Mismatch" },
   { value: "review", label: "Needs review" },
+  { value: "draft", label: "Draft BL" },
+  { value: "match", label: "Match" },
 ];
 
 function matchesStatus(row: InboxRow, status: StatusFilter): boolean {
-  if (status === "mismatch") return !!row.mismatchedFields;
-  if (status === "review") return !!row.reviewReason;
-  return true;
+  switch (status) {
+    case "mismatch":
+      return !!row.mismatchedFields;
+    case "review":
+      return !!row.reviewReason;
+    case "match":
+      return !!row.matched;
+    // No verdict yet: nothing to check the request against, so it's still just a draft ask.
+    case "draft":
+      return !row.mismatchedFields && !row.reviewReason && !row.matched;
+    default:
+      return true;
+  }
 }
 
 function StatusFilterButtons({
@@ -252,7 +278,7 @@ function StatusFilterButtons({
   onChange: (v: StatusFilter) => void;
 }) {
   return (
-    <div role="group" aria-label="Filter by status" className="flex shrink-0 gap-1">
+    <div role="group" aria-label="Filter by status" className="flex flex-wrap gap-1">
       {STATUS_FILTERS.map((f) => (
         <button
           key={f.value}

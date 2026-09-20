@@ -82,6 +82,7 @@ export function toInboxRow(e: Email): InboxRow {
       e.status === "MISMATCH"
         ? (e.defect_fields ?? []).map((f) => labelFor(f as ShipmentFieldKey))
         : undefined,
+    matched: e.status === "OK" ? true : undefined,
   };
 }
 
