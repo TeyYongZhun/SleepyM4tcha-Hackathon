@@ -99,19 +99,58 @@ async function compare(si: Analysed, bl: Analysed): Promise<ComparisonResult | n
   }
 }
 
+/** What the analysis adds to an Email, so it can be cached apart from one. */
+type Analysis = Pick<
+  Email,
+  "shipment_documents" | "status" | "review_reason" | "defect_fields" | "shipment_comparison"
+>;
+
 /**
- * Adds `shipment_documents`, and the SI-vs-BL verdict when the message carries
- * exactly one of each. Detail view only -- far too slow for the inbox list.
+ * Keyed by message id. The inbox list and the opened email both want this, and
+ * downloading the same attachments twice would double the Gmail calls for no
+ * reason. Entries expire with the message cache in ./index, so a message is
+ * re-read at most as often as it is re-fetched.
+ */
+const analysisCache = new Map<string, { at: number; value: Promise<Analysis | null> }>();
+const ANALYSIS_TTL_MS = 10 * 60_000;
+/** A page is 50; this keeps a long session from growing without bound. */
+const ANALYSIS_MAX = 500;
+
+function cachedAnalysis(emailId: string, run: () => Promise<Analysis | null>) {
+  const held = analysisCache.get(emailId);
+  if (held && Date.now() - held.at <= ANALYSIS_TTL_MS) return held.value;
+
+  const value = run();
+  analysisCache.set(emailId, { at: Date.now(), value });
+  if (analysisCache.size > ANALYSIS_MAX) {
+    // Map keeps insertion order, so the oldest entry is the first one.
+    analysisCache.delete(analysisCache.keys().next().value!);
+  }
+  return value;
+}
+
+/**
+ * Adds `shipment_documents` and the SI-vs-BL verdict to one message.
+ *
+ * Used by the inbox list as well as the opened email: the list needs `status`
+ * to show the "Mismatch" / "Needs review" badge on a row. A message with no
+ * attachments costs nothing, and the rest are cached, so a page pays for its
+ * shipping emails once.
  */
 export async function withShipmentAnalysis(token: string, email: Email): Promise<Email> {
   if (!email.attachments.length) return email;
+  const analysis = await cachedAnalysis(email.email_id, () => analyse(token, email));
+  return analysis ? { ...email, ...analysis } : email;
+}
+
+async function analyse(token: string, email: Email): Promise<Analysis | null> {
 
   const analysed = (
     await mapPool(email.attachments, CONCURRENCY, (a) => analyseOne(token, email.email_id, a))
   ).filter((x): x is Analysed => x !== null);
-  if (!analysed.length) return email;
+  if (!analysed.length) return null;
 
-  const out: Email = { ...email, shipment_documents: analysed.map((x) => x.doc) };
+  const out: Analysis = { shipment_documents: analysed.map((x) => x.doc) };
 
   // The built-in assessment covers every case, including a missing or unusable
   // side. The model, when the gateway is up, only replaces the field-by-field

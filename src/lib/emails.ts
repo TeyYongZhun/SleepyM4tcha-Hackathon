@@ -45,8 +45,14 @@ export interface InboxPageResult extends InboxPage {
 export async function getInboxPage(slug: CategorySlug, page: number): Promise<InboxPageResult> {
   const session = await auth();
   if (await usesGmail()) {
-    const gmail = await getGmailPage(session!.accessToken!, session!.user.id, page);
-    return { ...gmail, filtered: false };
+    const token = session!.accessToken!;
+    const gmail = await getGmailPage(token, session!.user.id, page);
+    // The row badges ("Mismatch", "Needs review") come from `status`, which only
+    // exists once the attachments have been read -- so the list has to do it too,
+    // not just the opened email. Messages without attachments cost nothing and
+    // the rest are cached, so opening one of these rows is then free.
+    const emails = await Promise.all(gmail.emails.map((e) => withShipmentAnalysis(token, e)));
+    return { ...gmail, emails, filtered: false };
   }
 
   const all = filterEmails(await getEmails(), slug);
