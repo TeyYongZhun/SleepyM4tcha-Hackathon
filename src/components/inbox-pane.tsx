@@ -70,6 +70,19 @@ export function InboxPane({
   const [error, setError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
+  /** Optimistic: clears the dot right away, then tells the server so it sticks past a reload. */
+  function markRead(id: string) {
+    setView((v) => ({
+      ...v,
+      rows: v.rows.map((r) => (r.id === id && r.unread ? { ...r, unread: false } : r)),
+    }));
+    fetch("/api/inbox/read", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    }).catch(() => {}); // best-effort; the dot already cleared locally
+  }
+
   async function goTo(page: number) {
     setLoading(true);
     setError(null);
@@ -141,6 +154,7 @@ export function InboxPane({
               key={row.id}
               href={`/dashboard/${slug}/${encodeURIComponent(row.id)}`}
               aria-current={selected ? "page" : undefined}
+              onClick={() => row.unread && markRead(row.id)}
               className={`block rounded-lg px-2.5 py-2 transition hover:bg-paper-2 ${
                 selected ? "bg-paper-2" : ""
               }`}

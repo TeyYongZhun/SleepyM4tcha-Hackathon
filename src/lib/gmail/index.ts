@@ -1,7 +1,7 @@
 import "server-only";
 import type { Email } from "../types";
 import { PAGE_SIZE } from "../paging";
-import { GmailError, gmailGet, mapPool } from "./api";
+import { GmailError, gmailGet, gmailPost, mapPool } from "./api";
 import { enrich } from "./enrich";
 import { findPart, mimeOf, parseMessage, type GmailMessage } from "./parse";
 
@@ -151,6 +151,17 @@ export async function getMessage(
   if (!email) return undefined;
   store.set(id, { at: Date.now(), email });
   return email;
+}
+
+/**
+ * Clears Gmail's UNREAD label, so it stays read the next time the inbox is
+ * loaded (not just in the current tab), and updates the held copy so a
+ * same-session reload of this page shows it as read without an extra fetch.
+ */
+export async function markMessageRead(token: string, userKey: string, id: string): Promise<void> {
+  await gmailPost(token, `/messages/${encodeURIComponent(id)}/modify`, { removeLabelIds: ["UNREAD"] });
+  const held = storeFor(userKey).get(id);
+  if (held) held.email = { ...held.email, unread: false };
 }
 
 export interface AttachmentFile {

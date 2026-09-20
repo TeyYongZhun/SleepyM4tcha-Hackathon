@@ -41,25 +41,33 @@ async function pace() {
 }
 
 /**
- * GET against the Gmail API as the signed-in user. Paced under Gmail's quota;
+ * Against the Gmail API as the signed-in user. Paced under Gmail's quota;
  * on a quota error every request pauses (not just the failing one) and retries
- * after a backoff; 5xx errors retry briefly.
+ * after a backoff; 5xx errors retry briefly. Shared by gmailGet and gmailPost.
  */
-export async function gmailGet<T>(
+async function gmailFetch<T>(
   token: string,
+  method: "GET" | "POST",
   path: string,
   params: Record<string, string> = {},
+  reqBody?: unknown,
 ): Promise<T> {
   const url = `${BASE}${path}?${new URLSearchParams(params)}`;
 
   for (let attempt = 0; ; attempt++) {
     await pace();
     const res = await fetch(url, {
-      headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
+      method,
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+        ...(reqBody !== undefined ? { "Content-Type": "application/json" } : {}),
+      },
+      body: reqBody !== undefined ? JSON.stringify(reqBody) : undefined,
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
-    if (res.ok) return (await res.json()) as T;
+    if (res.ok) return res.status === 204 ? (undefined as T) : ((await res.json()) as T);
 
     const body = await res.text();
     const quota =
@@ -86,6 +94,14 @@ export async function gmailGet<T>(
     }
     throw new GmailError(res.status, `Gmail API ${path} failed (${res.status}): ${message}`, quota);
   }
+}
+
+export function gmailGet<T>(token: string, path: string, params: Record<string, string> = {}): Promise<T> {
+  return gmailFetch<T>(token, "GET", path, params);
+}
+
+export function gmailPost<T>(token: string, path: string, body?: unknown): Promise<T> {
+  return gmailFetch<T>(token, "POST", path, {}, body);
 }
 
 /** Runs `fn` over `items` with at most `limit` in flight; results keep input order. */
