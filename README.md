@@ -7,7 +7,7 @@ Built for the Averis x Monash Hackathon 2026.
 ## What it does
 
 - **Sign in with Google**, or click **Try the demo** to explore without any credentials.
-- **Filter the inbox**: All, Relevant, Spam, Requires Human Intervention, Unrelated, each with a live count.
+- **Filter the inbox**: All, BL Comparison, SI Request, Invoice Query, General, Spam — the five categories the classifier predicts, each with a live count.
 - **Paged list**: 50 messages a page with **← Newer / Older →** at the bottom, like Gmail. Pages load on demand, so a big inbox is never fetched in bulk.
 - **Three-pane dashboard**: inbox list on the left, the full email in the middle (text or HTML body, images, PDFs and text files previewed inline, attachments you can minimize), and a summary on the right.
 - **Shipment document checks** at the top of the summary, on every email:
@@ -19,21 +19,84 @@ Built for the Averis x Monash Hackathon 2026.
 
 ## Tech stack
 
-Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Auth.js (`next-auth` v5) for Google login, Lucide icons. Designed to deploy on Vercel.
+**Website:** Next.js 16 (App Router), React 19, TypeScript, Tailwind CSS 4, Auth.js (`next-auth` v5) for Google login, Lucide icons.
 
-## Quick start
+**ML services:** Python 3.13, FastAPI, scikit-learn. The classifier is a balanced logistic regression over TF-IDF plus engineered flags; the comparator extracts document fields with a trained label classifier, then compares them with deterministic normalisation rules.
 
-You need Node 20 or newer.
+## Running it
+
+The app is **two processes**: the Next.js website, and a Python service that
+runs the two ML models. Open **two terminals**, both in the project root
+(`SleepyM4tcha-Hackathon/` — the folder with `package.json`, not its parent).
+
+### One-time setup
+
+You need **Node 20+** and **Python 3.13+**.
 
 ```bash
-npm install
-cp .env.example .env.local   # then fill it in, see "Environment variables"
+npm install                                  # website dependencies
+py -3.13 -m venv .venv                       # Python environment
+.venv/Scripts/python.exe -m pip install -r requirements.txt
+cp .env.example .env.local                   # then fill it in, see "Environment variables"
+```
+
+### Terminal 1 — the website
+
+```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) (use `localhost`, not `127.0.0.1`, or Google sign-in will reject the redirect).
+Wait for `✓ Ready in ...`, then open **[http://localhost:3000](http://localhost:3000)**.
 
-**No credentials yet?** Set only `AUTH_SECRET` and click **Try the demo**. That works without Google, and shows the 520 sample emails in `public/dummy`.
+> Use `localhost`, not `127.0.0.1`, or Google sign-in rejects the redirect.
+> If you see `Port 3000 is in use ... using available port 3001 instead`, **stop
+> and free port 3000** (see Troubleshooting) — Google OAuth is registered for
+> 3000 only, so sign-in breaks on any other port.
+
+### Terminal 2 — the ML service
+
+```bash
+.venv/Scripts/python.exe -m uvicorn backend.app:app --port 8000
+```
+
+Wait for `Uvicorn running on http://127.0.0.1:8000`. Check it with:
+
+```bash
+curl http://localhost:8000/health        # {"status":"ok","emails":520}
+```
+
+This one serves the email classifier (`sdoc_classifier/`) and the SI-vs-BL
+comparator (`sdoc_comparator/`). Without it the website still runs, but
+classification silently falls back to keyword rules and no document comparison
+happens.
+
+**On Windows PowerShell** use backslashes: `.venv\Scripts\python.exe -m uvicorn ...`
+
+### Which inbox you get
+
+Two variables in `.env.local` decide this. They interact — setting
+`BACKEND_API_URL` switches the Gmail path off entirely:
+
+| `BACKEND_API_URL`       | `CLASSIFIER_API_URL`      | What you see                                 |
+| ----------------------- | ------------------------- | -------------------------------------------- |
+| *(empty)*               | `http://localhost:8000` | **Your real Gmail**, classified live         |
+| `http://localhost:8000` | *(ignored)*               | The seeded 520-email dataset                 |
+| *(empty)*               | *(empty)*                 | Your real Gmail, keyword rules only          |
+
+Restart `npm run dev` after changing either — env vars are read at startup.
+
+**For a demo, prefer the seeded dataset.** It is what the models were trained
+on: the classifier scores 520/520 on it and `email_004` shows a real SI-vs-BL
+mismatch. On a personal inbox the classifier is out of its depth (see
+"Classification on real mail" below).
+
+**No Google credentials at all?** Set only `AUTH_SECRET` and click **Try the
+demo** — no Google needed, and it browses the 520 sample emails in
+`public/dummy`.
+
+### Stopping
+
+Press **Ctrl+C** in each terminal. If a port is stuck, see Troubleshooting.
 
 ### Scripts
 
@@ -43,6 +106,14 @@ Open [http://localhost:3000](http://localhost:3000) (use `localhost`, not `127.0
 | `npm run build` | Production build                   |
 | `npm start`     | Serve the production build         |
 | `npm run lint`  | ESLint                             |
+
+### The ML side
+
+```bash
+cd sdoc_classifier && ../.venv/Scripts/python.exe -m pytest      # 25 tests
+cd sdoc_classifier && ../.venv/Scripts/python.exe -m src.train    # retrain the classifier
+cd sdoc_comparator && ../.venv/Scripts/python.exe src/main.py     # run the comparison demo
+```
 
 ## Environment variables
 
@@ -61,6 +132,7 @@ AUTH_SECRET=...
 AUTH_GOOGLE_ID=...
 AUTH_GOOGLE_SECRET=...
 BACKEND_API_URL=
+CLASSIFIER_API_URL=http://localhost:8000
 ENABLE_DEMO=false
 ```
 
@@ -71,7 +143,8 @@ ENABLE_DEMO=false
 | `AUTH_SECRET`        | Yes              | -        | Random string that signs login sessions. Generate with`npx auth secret`. Use a different one per environment.                                                                                              |
 | `AUTH_GOOGLE_ID`     | For Google login | -        | OAuth client ID from Google Cloud (see "Setting up Google sign-in").                                                                                                                                         |
 | `AUTH_GOOGLE_SECRET` | For Google login | -        | OAuth client secret from the same place. Keep it private.                                                                                                                                                    |
-| `BACKEND_API_URL`    | No               | empty    | Your backend's origin, e.g.`https://api.example.com`. **Empty = the app reads the signed-in user's Gmail itself.** Set = every email comes from your backend instead (see "Connecting the backend"). |
+| `BACKEND_API_URL`    | No               | empty    | The gateway's origin, e.g.`http://localhost:8000`. **Empty = the app reads the signed-in user's Gmail itself.** Set = every email comes from the gateway's seeded inbox instead (see "Connecting the backend"). |
+| `CLASSIFIER_API_URL` | No               | empty    | Where`POST /classify` and `POST /compare` live, normally `http://localhost:8000`. Used **only on the Gmail path**, to classify real messages and compare their SI/BL attachments. Unset or unreachable falls back to keyword rules rather than failing. |
 | `ENABLE_DEMO`        | No               | `true` | The "Try the demo" login and its sample inbox. Set to exactly`false` to turn it off (the button disappears and the demo login is rejected). Any other value leaves it on.                                  |
 
 On Vercel, `NEXTAUTH_URL` / `AUTH_URL` is not needed; Auth.js detects the domain there. Locally, open the app at `http://localhost:3000` (not `127.0.0.1`).
@@ -104,8 +177,12 @@ AUTH_SECRET=
 AUTH_GOOGLE_ID=
 AUTH_GOOGLE_SECRET=
 
-# Leave empty to use built-in mock emails. Set once the backend is ready.
+# Empty = read the signed-in user's real Gmail.
+# Set to http://localhost:8000 = serve the seeded 520-email dataset instead.
 BACKEND_API_URL=
+
+# The FastAPI gateway, used on the Gmail path for POST /classify and /compare.
+CLASSIFIER_API_URL=http://localhost:8000
 
 # "Try the demo" button: logs in as a fake user and browses public/dummy.
 # Set to false to disable (e.g. on a production deployment).
@@ -133,9 +210,9 @@ The dummy data carries no labels, so `src/lib/demo/classify.ts` assigns categori
 
 **Attachments are never stored.** The email carries a URL like `/api/attachments/<emailId>/<partId>`; when the browser opens it, `src/app/api/attachments/` asks Gmail for that one file with the user's token and passes it through. Only images, PDFs and plain text open inline; everything else (HTML, Office files...) downloads, and files are served with a sandbox CSP so a hostile attachment can't run scripts on your origin.
 
-Gmail has no categories, summaries or SI/BL fields, so `src/lib/gmail/enrich.ts` fills them in with the demo's keyword rules as a **stand-in**. Replace it with the real classifier when it exists.
+Gmail has no categories, summaries or SI/BL fields, so `src/lib/gmail/enrich.ts` fills them in by calling the real classifier at `CLASSIFIER_API_URL` (`POST /classify`), and `src/lib/gmail/attachments.ts` reads the attachments and asks for the SI-vs-BL comparison (`POST /compare`). If that service is unset or down it falls back to the demo's keyword rules, so the inbox still renders.
 
-Limits to know about: with Gmail the category tabs (Relevant, Spam, ...) filter the 50 messages of the page you are viewing and show no counts, because classifying the whole inbox would mean downloading all of it. Vercel also caps a function response at about 4.5 MB, so attachments bigger than that won't come through the route.
+Limits to know about: with Gmail the category tabs (BL Comparison, Spam, ...) filter the 50 messages of the page you are viewing and show no counts, because classifying the whole inbox would mean downloading all of it. Vercel also caps a function response at about 4.5 MB, so attachments bigger than that won't come through the route.
 
 ## Connecting the backend
 
@@ -154,7 +231,7 @@ Requests run on the server and send `Authorization: Bearer <the user's Google ac
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
 | `email_id`, `from`, `to`, `subject`, `body`, `received_at` | The email itself.`body_type` is `html` or `text`                                         |
 | `attachments`                                                        | `[{ id, filename, mime_type, size, url }]`. Images and PDFs are previewed from `url`       |
-| `category`                                                           | `relevant`, `spam`, `human_intervention` or `unrelated`                                |
+| `category`                                                           | `BL_COMPARISON`, `SI_REQUEST`, `INVOICE_QUERY`, `GENERAL` or `SPAM` (case-insensitive) |
 | `summary`                                                            | `{ headline, summary, confidence, reason, fields[], actions[], sentiment }`                  |
 | `shipment_info`                                                      | Shipment fields stated in the email text, e.g.`{ shipper, consignee, port_of_loading, ... }` |
 | `shipment_documents`                                                 | `[{ kind: "SI" or "BL" or "OTHER", filename, readable, fields }]`                            |
@@ -162,6 +239,17 @@ Requests run on the server and send `Authorization: Bearer <the user's Google ac
 The full types are in `src/lib/types.ts`. The adapter also accepts a few alternative spellings, so slightly different field names still render while the contract settles.
 
 ## Project structure
+
+Three components, merged from three branches:
+
+| Path                  | What                                                                       |
+| --------------------- | -------------------------------------------------------------------------- |
+| `src/`              | The Next.js website (this README's main subject)                           |
+| `sdoc_classifier/`  | Email category model — sorts mail into the five categories                  |
+| `sdoc_comparator/`  | SI-vs-BL document comparison — finds mismatched fields                      |
+| `backend/`          | FastAPI gateway that serves both models to the website (`backend/app.py`) |
+
+Inside the website:
 
 | Path                                        | What                                                                                   |
 | ------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -174,6 +262,8 @@ The full types are in `src/lib/types.ts`. The adapter also accepts a few alterna
 | `src/lib/api/`                            | Backend routing:`routes.ts`, `adapters.ts`, `client.ts`                          |
 | `src/lib/emails.ts`                       | Chooses the source: demo inbox, backend (if`BACKEND_API_URL` is set), Gmail, or mock |
 | `src/lib/gmail/`                          | Gmail source: load the whole inbox, parse messages, fetch one attachment               |
+| `src/lib/gmail/enrich.ts`                 | Classifies one Gmail message via `POST /classify` (keyword rules as fallback)        |
+| `src/lib/gmail/attachments.ts`            | Reads Gmail attachments and runs the SI/BL comparison via `POST /compare`            |
 | `src/app/api/inbox/`                      | One page (50) of the inbox for a tab, called by Older / Newer (all sources)            |
 | `src/app/api/attachments/`                | Streams one Gmail attachment on demand (nothing stored)                                |
 | `src/lib/types.ts`                        | `Email`, `Attachment`, `EmailSummary`, shipment types                            |
@@ -204,3 +294,32 @@ The full types are in `src/lib/types.ts`. The adapter also accepts a few alterna
 | `MissingSecret` error                   | `AUTH_SECRET` is empty in `.env.local`                                                   |
 | Env changes have no effect                | Restart`npm run dev`                                                                       |
 | Sent back to the landing page after login | The Google refresh token failed. Sign out and sign in again                                  |
+| `Port 3000 is in use ... using 3001`    | Free the port, don't accept 3001 — Google OAuth only allows 3000. See below                |
+| `Jest worker encountered N child process exceptions` | A stale dev server whose workers died. Restart it — this is not a code error   |
+| `FATAL: An unexpected Turbopack error occurred`, or every page 500s on a fresh start | Corrupt build cache. `rm -rf .next` and restart. It is regenerated, and gitignored, so deleting it is always safe |
+| Inbox shows the 520 sample emails, not your real mail | `BACKEND_API_URL` is set. Blank it and restart to read Gmail                 |
+| Categories look wrong / everything is General | The ML service isn't running, so it fell back to keyword rules. Start terminal 2   |
+| No SI/BL comparison on a Gmail email      | Needs exactly one SI **and** one BL attachment, and `CLASSIFIER_API_URL` set          |
+| `403 insufficient authentication scopes` | Gmail API not enabled, or `gmail.readonly` missing from the consent screen, or Google reused an old grant — revoke it at myaccount.google.com/permissions and sign in again |
+
+**Freeing a stuck port** (PowerShell):
+
+```powershell
+Get-NetTCPConnection -LocalPort 3000 -State Listen | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }
+```
+
+## Classification on real mail
+
+The classifier is trained on 520 generated emails built from a handful of
+templates. On the seeded dataset it scores 520/520. On a **personal** inbox it
+is out of its depth, because several of the features it learned do not occur
+there at all — an internal `aprilasia.com` sender, an SI+BL attachment pair,
+the coded subject formats. Expect most ordinary mail to land in **General** or
+**Spam**.
+
+Predictions below `LOW_CONFIDENCE_THRESHOLD` (0.55, in
+`sdoc_classifier/src/config.py`) are reported as `GENERAL` rather than a
+confident wrong answer, with the model's original guess kept in
+`model_category`. That helps, but does not fix it: the real fix is retraining
+on labelled real mail in `sdoc_classifier/extra_data/train_handwritten.json`,
+which the training code picks up automatically and weights ×5.
