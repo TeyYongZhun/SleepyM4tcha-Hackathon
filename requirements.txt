@@ -20,6 +20,7 @@ pdfplumber        # .pdf
 # --- FastAPI gateway (backend/) ---
 fastapi
 uvicorn[standard]
+python-multipart   # UploadFile on POST /compare
 
 # --- tests ---
 pytest

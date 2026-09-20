@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import logging
 import sys
+import tempfile
 from functools import lru_cache
 from pathlib import Path
 
 import joblib
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -46,7 +47,7 @@ from sdoc_classifier.src.predict import classify            # noqa: E402
 
 import main as comparator                                   # noqa: E402  (sdoc_comparator/src/main.py)
 
-from .assemble import email_json, kind_of, summary          # noqa: E402
+from .assemble import comparison_json, email_json, kind_of, summary   # noqa: E402
 
 log = logging.getLogger("gateway")
 
@@ -201,3 +202,33 @@ def classify_one(message: dict = Body(...)):
         "low_confidence": low,
         "summary": summary(category, prediction.confidence, len(record.attachments), record.body),
     }
+
+
+@app.post("/compare")
+async def compare_uploaded(si: UploadFile = File(...), bl: UploadFile = File(...)):
+    """Compare an SI against a BL that arrived as email attachments.
+
+    GET /emails/{id} compares the seeded inbox, whose documents are already on
+    disk. Gmail attachments only exist as bytes, so they are written to a temp
+    directory first -- extract_fields() dispatches on the file extension
+    (sdoc_comparator/src/extractor.py), so each name's suffix has to survive.
+
+    The directory is removed as soon as the request ends: nothing from the
+    user's mail is kept.
+    """
+    with tempfile.TemporaryDirectory(prefix="wayboxai-") as tmp:
+        paths = {}
+        for label, upload in (("SI", si), ("BL", bl)):
+            # Basename only -- an uploaded name is untrusted and must not escape tmp.
+            name = Path(upload.filename or f"{label}.txt").name
+            path = Path(tmp) / f"{label}_{name}"
+            path.write_bytes(await upload.read())
+            paths[label] = path
+
+        try:
+            result = comparator.analyze_pair(paths["SI"], paths["BL"])
+        except Exception:
+            log.exception("comparison failed for uploaded %s / %s", si.filename, bl.filename)
+            raise HTTPException(status_code=500, detail="Comparison failed")
+
+    return comparison_json(result)

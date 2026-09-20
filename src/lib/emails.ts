@@ -7,6 +7,7 @@ import { ApiError, backendEnabled, request } from "./api/client";
 import { routes } from "./api/routes";
 import { loadDemoEmail, loadDemoEmails } from "./demo/load";
 import { getInboxPage as getGmailPage, getMessage, type InboxPage } from "./gmail";
+import { withShipmentAnalysis } from "./gmail/attachments";
 import type { InboxRow } from "@/components/inbox-pane";
 import { displayName } from "./format";
 import { PAGE_SIZE } from "./paging";
@@ -99,7 +100,14 @@ export async function getEmail(emailId: string): Promise<Email | undefined> {
       throw e;
     }
   }
-  if (session?.accessToken) return getMessage(session.accessToken, session.user.id, emailId);
+  if (session?.accessToken) {
+    const email = await getMessage(session.accessToken, session.user.id, emailId);
+    // Attachments are read here, not in getMessage: that cache is shared with
+    // the inbox list, which must stay cheap. Opening one email is where the
+    // SI/BL work belongs -- the same split the demo makes between
+    // loadDemoEmails (no analysis) and loadDemoEmail (analysis).
+    return email && withShipmentAnalysis(session.accessToken, email);
+  }
   return MOCK_EMAILS.find((e) => e.email_id === emailId);
 }
 

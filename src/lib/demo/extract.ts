@@ -52,17 +52,28 @@ async function xlsxToText(buf: Buffer): Promise<string> {
     .join("\n");
 }
 
-async function fileToText(abs: string, ext: string): Promise<string> {
-  if (ext === "txt") return fs.readFile(abs, "utf8");
-  const buf = await fs.readFile(abs);
+/** The file types we can read at all. Anything else is skipped, not failed. */
+export const READABLE_EXTENSIONS = ["txt", "pdf", "docx", "xlsx"];
+
+/**
+ * Bytes -> text. Kept separate from any file path so the same readers serve
+ * both the demo's on-disk fixtures and Gmail attachments, which only ever
+ * exist in memory.
+ */
+export function bufferToText(buf: Buffer, ext: string): Promise<string> {
+  if (ext === "txt") return Promise.resolve(buf.toString("utf8"));
   if (ext === "pdf") return pdfToText(buf);
   if (ext === "docx") return docxToText(buf);
   if (ext === "xlsx") return xlsxToText(buf);
   throw new Error(`unsupported type: ${ext}`);
 }
 
+async function fileToText(abs: string, ext: string): Promise<string> {
+  return bufferToText(await fs.readFile(abs), ext);
+}
+
 /** When a file can't be read, the filename is the only hint left about what it was. */
-function kindFromFilename(name: string): ShipmentDocument["kind"] {
+export function kindFromFilename(name: string): ShipmentDocument["kind"] {
   if (/(^|[_\-. ])SI([_\-. ]|$)/i.test(name)) return "SI";
   if (/(^|[_\-. ])BL([_\-. ]|$)/i.test(name)) return "BL";
   return "OTHER";
@@ -72,7 +83,7 @@ const cache = new Map<string, Promise<ShipmentDocument | null>>();
 
 function analyzeOne(a: Attachment): Promise<ShipmentDocument | null> {
   const ext = a.filename.split(".").pop()?.toLowerCase() ?? "";
-  if (!["txt", "pdf", "docx", "xlsx"].includes(ext)) return Promise.resolve(null);
+  if (!READABLE_EXTENSIONS.includes(ext)) return Promise.resolve(null);
 
   let hit = cache.get(a.id);
   if (!hit) {

@@ -136,17 +136,29 @@ def email_json(record, prediction, comparison: dict | None = None) -> dict:
         ),
     }
     if comparison:
-        out["status"] = comparison["status"]
-        out["review_reason"] = comparison["reason"]
-        # Only a MISMATCH has defect fields. A NEEDS_REVIEW pair was never
-        # fully compared, so reporting "defects" for it would be wrong --
-        # this mirrors result_to_json() in sdoc_comparator/src/main.py.
-        out["defect_fields"] = (
+        out.update(comparison_json(comparison))
+    return out
+
+
+def comparison_json(comparison: dict) -> dict:
+    """analyze_pair()'s result in the shape the frontend reads.
+
+    Shared by GET /emails/{id} (seeded inbox, files already on disk) and
+    POST /compare (Gmail attachments, uploaded), so the field mapping and the
+    MISMATCH-only rule below live in exactly one place.
+    """
+    return {
+        "status": comparison["status"],
+        "review_reason": comparison["reason"],
+        # Only a MISMATCH has defect fields. A NEEDS_REVIEW pair was never fully
+        # compared, so reporting "defects" for it would be wrong -- this mirrors
+        # result_to_json() in sdoc_comparator/src/main.py.
+        "defect_fields": (
             [FIELD_KEY.get(f, f) for f in COMPARISON_ORDER if f in comparison["mismatch_fields"]]
             if comparison["status"] == "MISMATCH"
             else []
-        )
-        out["shipment_comparison"] = [
+        ),
+        "shipment_comparison": [
             {
                 "field": DISPLAY_TO_KEY.get(row["field"], row["field"]),
                 "si_value": row["si_value"],
@@ -154,5 +166,5 @@ def email_json(record, prediction, comparison: dict | None = None) -> dict:
                 "status": row["status"],
             }
             for row in comparison["rows"]
-        ]
-    return out
+        ],
+    }
