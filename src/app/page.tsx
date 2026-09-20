@@ -14,9 +14,6 @@ const PREVIEW = [
     subject: "REQUEST BL DRAFT _ PO 26067 _ COATED IVORY BOARD",
     label: "BL Comparison",
     tone: "bg-info-bg text-info",
-    selected: true,
-    // Says why, so nobody has to open the email to find out
-    reason: "Mismatch · Consignee, Notify Party",
   },
   {
     from: "Pacific Rim Trading",
@@ -159,12 +156,7 @@ export default async function LandingPage() {
                 Inbox
               </p>
               {PREVIEW.map((m) => (
-                <div
-                  key={m.from}
-                  className={`mb-1.5 rounded-[10px] px-2 py-2.5 last:mb-0 ${
-                    m.selected ? "bg-paper-2" : ""
-                  }`}
-                >
+                <div key={m.from} className="mb-1.5 rounded-[10px] px-2 py-2.5 last:mb-0">
                   <div className="flex justify-between">
                     <span className="text-[13.5px] font-semibold">{m.from}</span>
                     <span className="text-[11.5px] text-ink-soft">{m.time}</span>
@@ -174,7 +166,6 @@ export default async function LandingPage() {
                     className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.tone}`}
                   >
                     {m.label}
-                    {m.reason && <> · {m.reason}</>}
                   </span>
                 </div>
               ))}
