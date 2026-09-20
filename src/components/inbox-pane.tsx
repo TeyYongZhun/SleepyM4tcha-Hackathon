@@ -3,7 +3,15 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { AlertTriangle, ArrowLeft, ArrowRight, CheckCircle2, Paperclip, UserCheck } from "lucide-react";
+import {
+  AlertTriangle,
+  ArrowLeft,
+  ArrowRight,
+  CheckCheck,
+  CheckCircle2,
+  Paperclip,
+  UserCheck,
+} from "lucide-react";
 import { getCategoryBySlug, type CategorySlug } from "@/lib/categories";
 import { PAGE_SIZE } from "@/lib/paging";
 import { REVIEW_REASON_SHORT } from "@/lib/shipment";
@@ -37,6 +45,13 @@ export interface InboxRow {
    * attached yet to check -- just a request for one.
    */
   matched?: boolean;
+  /**
+   * Set once a person has cleared a mismatch or a needs-review case by hand.
+   * Takes over from whichever of the above got it there -- a resolved row
+   * shows under Resolved instead of Mismatch/Needs review from then on.
+   * Nothing sets this yet: it's here for the Resolve button, still to come.
+   */
+  resolved?: boolean;
 }
 
 /** One page of the inbox, as /api/inbox returns it. */
@@ -216,24 +231,33 @@ export function InboxPane({
               <p className="truncate text-[12.5px] leading-snug text-ink">{row.subject}</p>
               <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <CategoryBadge category={row.category} />
-                {row.mismatchedFields && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-bad-bg px-2 py-0.5 text-[10px] font-semibold text-bad">
-                    <AlertTriangle size={11} aria-hidden />
-                    Mismatch{mismatchSummary(row.mismatchedFields)}
+                {row.resolved ? (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-mute-bg px-2 py-0.5 text-[10px] font-semibold text-mute">
+                    <CheckCheck size={11} aria-hidden />
+                    Resolved
                   </span>
-                )}
-                {row.matched && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-good-bg px-2 py-0.5 text-[10px] font-semibold text-good">
-                    <CheckCircle2 size={11} aria-hidden />
-                    Match
-                  </span>
-                )}
-                {row.reviewReason && (
-                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn-bg px-2 py-0.5 text-[10px] font-semibold text-warn">
-                    <UserCheck size={11} aria-hidden />
-                    Needs review
-                    {row.reviewReason !== "unknown" && <> · {REVIEW_REASON_SHORT[row.reviewReason]}</>}
-                  </span>
+                ) : (
+                  <>
+                    {row.mismatchedFields && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-bad-bg px-2 py-0.5 text-[10px] font-semibold text-bad">
+                        <AlertTriangle size={11} aria-hidden />
+                        Mismatch{mismatchSummary(row.mismatchedFields)}
+                      </span>
+                    )}
+                    {row.matched && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-good-bg px-2 py-0.5 text-[10px] font-semibold text-good">
+                        <CheckCircle2 size={11} aria-hidden />
+                        Match
+                      </span>
+                    )}
+                    {row.reviewReason && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn-bg px-2 py-0.5 text-[10px] font-semibold text-warn">
+                        <UserCheck size={11} aria-hidden />
+                        Needs review
+                        {row.reviewReason !== "unknown" && <> · {REVIEW_REASON_SHORT[row.reviewReason]}</>}
+                      </span>
+                    )}
+                  </>
                 )}
                 {row.attachmentCount > 0 && (
                   <span className="inline-flex items-center gap-0.5 text-[11px] text-ink-soft">
@@ -294,7 +318,7 @@ function mismatchSummary(fields: string[]): string {
   return fields.length <= 2 ? ` · ${fields.join(", ")}` : ` · ${fields.length} fields`;
 }
 
-type StatusFilter = "all" | "mismatch" | "review" | "draft" | "match";
+type StatusFilter = "all" | "mismatch" | "review" | "draft" | "match" | "resolved";
 
 // Same tones as the row badges below, so a selected pill previews what it filters to.
 const STATUS_FILTERS: { value: StatusFilter; label: string; tone: string }[] = [
@@ -303,19 +327,24 @@ const STATUS_FILTERS: { value: StatusFilter; label: string; tone: string }[] = [
   { value: "mismatch", label: "Mismatch", tone: "border-transparent bg-bad-bg text-bad" },
   { value: "draft", label: "Draft BL", tone: "border-transparent bg-info-bg text-info" },
   { value: "review", label: "Needs review", tone: "border-transparent bg-warn-bg text-warn" },
+  { value: "resolved", label: "Resolved", tone: "border-transparent bg-mute-bg text-mute" },
 ];
 
 function matchesStatus(row: InboxRow, status: StatusFilter): boolean {
   switch (status) {
+    case "resolved":
+      return !!row.resolved;
+    // Resolved overrides the others: once a person clears it, it's out of
+    // Mismatch/Needs review and only counted under Resolved from then on.
     case "mismatch":
-      return !!row.mismatchedFields;
+      return !!row.mismatchedFields && !row.resolved;
     case "review":
-      return !!row.reviewReason;
+      return !!row.reviewReason && !row.resolved;
     case "match":
-      return !!row.matched;
+      return !!row.matched && !row.resolved;
     // No verdict yet: nothing to check the request against, so it's still just a draft ask.
     case "draft":
-      return !row.mismatchedFields && !row.reviewReason && !row.matched;
+      return !row.mismatchedFields && !row.reviewReason && !row.matched && !row.resolved;
     default:
       return true;
   }
