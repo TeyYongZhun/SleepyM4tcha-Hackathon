@@ -1,0 +1,192 @@
+label_text,canonical_field
+Shipper,shipper
+SHIPPER,shipper
+Shipper (Principal or Seller),shipper
+Shipper Name,shipper
+Exporter,shipper
+CONSIGNEE,consignee
+Consignee,consignee
+Consignee (Non-Negotiable),consignee
+Consignee Name,consignee
+To the Order of,consignee
+NOTIFY PARTY,notify_party
+Notify Party,notify_party
+Notify,notify_party
+Also Notify,notify_party
+Port of Loading (POL),port_of_loading
+Port of Loading,port_of_loading
+Load Port,port_of_loading
+POL,port_of_loading
+Loading Port,port_of_loading
+Port of Discharge,port_of_discharge
+Port of Discharge (POD),port_of_discharge
+POD,port_of_discharge
+Discharge Port,port_of_discharge
+Destination Port,port_of_discharge
+No. of Containers or Packages,container_count
+Container Count,container_count
+Total Containers,container_count
+No. of Containers,container_count
+Number of Containers,container_count
+Container Qty,container_count
+Gross Weight (KG),gross_weight
+GROSS WEIGHT,gross_weight
+Gross Wt (kgs),gross_weight
+TOTAL Gross Weight (KG),gross_weight
+Total Gross Wt (kgs),gross_weight
+Gross Weight,gross_weight
+Weight (KG),gross_weight
+Export Carrier (vessel voyage),vessel_voyage
+Vessel Name,vessel_voyage
+Vessel,vessel_voyage
+Ocean Vessel,vessel_voyage
+Carrier Vessel,vessel_voyage
+Vessel Voyage,vessel_voyage
+Commodity,commodity
+Description of Goods,commodity
+Kinds of Packages Description of Goods,commodity
+Cargo Description,commodity
+Goods Description,commodity
+HS CODE,hs_code
+HS Code,hs_code
+Harmonized Code,hs_code
+Tariff Code,hs_code
+B/L No.,bl_number
+Bill of Lading No.,bl_number
+B/L NUMBER,bl_number
+BL Number,bl_number
+BOOKING NO.,booking_no
+Booking Ref,booking_no
+Booking No,booking_no
+Booking Number,booking_no
+Booking Reference,booking_no
+FREIGHT,freight
+Freight,freight
+Freight Terms,freight
+OC No.,oc_number
+OC NO.,oc_number
+Operator Code No,oc_number
+Shipper/Exporter,shipper
+Shipper/Exporter (发货人),shipper
+Shipper (Principal or Seller) (发货人),shipper
+发货人,shipper
+托运人,shipper
+出口商,shipper
+Penghantar,shipper
+Pengirim,shipper
+Expedidor,shipper
+Cargador,shipper
+Exportador,shipper
+Versender,shipper
+Absender,shipper
+Expéditeur,shipper
+Consignee (收货人),consignee
+Consignee (Non-Negotiable) (收货人),consignee
+收货人,consignee
+收件人,consignee
+Penerima Barang,consignee
+Penerima,consignee
+Consignatario,consignee
+Destinatario,consignee
+Empfänger,consignee
+Destinataire,consignee
+Notify (通知人),notify_party
+通知人,notify_party
+通知方,notify_party
+Pihak Dimaklumkan,notify_party
+Parte a Notificar,notify_party
+Notificar a,notify_party
+Meldeadresse,notify_party
+Benachrichtigungsadresse,notify_party
+Partie à Notifier,notify_party
+Port of Loading (装货港),port_of_loading
+PORT OF LOADING (装货港),port_of_loading
+装货港,port_of_loading
+起运港,port_of_loading
+装运港,port_of_loading
+Pelabuhan Pemuatan,port_of_loading
+Puerto de Carga,port_of_loading
+Puerto de Embarque,port_of_loading
+Verladehafen,port_of_loading
+Ladehafen,port_of_loading
+Port de Chargement,port_of_loading
+Discharge Port (卸货港),port_of_discharge
+POD (卸货港),port_of_discharge
+卸货港,port_of_discharge
+目的港,port_of_discharge
+Pelabuhan Pelepasan,port_of_discharge
+Puerto de Descarga,port_of_discharge
+Puerto de Destino,port_of_discharge
+Entladehafen,port_of_discharge
+Löschhafen,port_of_discharge
+Bestimmungshafen,port_of_discharge
+Port de Déchargement,port_of_discharge
+No. of Containers (箱数),container_count
+Total Containers (箱数),container_count
+箱数,container_count
+集装箱数量,container_count
+柜数,container_count
+Bilangan Kontena,container_count
+Jumlah Kontena,container_count
+Cantidad de Contenedores,container_count
+Número de Contenedores,container_count
+Anzahl Container,container_count
+Anzahl der Container,container_count
+Nombre de Conteneurs,container_count
+Gross Wt (kgs) (毛重 KGS),gross_weight
+Gross Weight毛重(KGS),gross_weight
+毛重,gross_weight
+毛重 KGS,gross_weight
+总毛重,gross_weight
+Berat Kasar,gross_weight
+Jumlah Berat Kasar,gross_weight
+Peso Bruto,gross_weight
+Bruttogewicht,gross_weight
+Gesamtbruttogewicht,gross_weight
+Poids Brut,gross_weight
+Export Carrier (vessel voyage) (船名),vessel_voyage
+"Export Carrier (vessel, voyage) (船名)",vessel_voyage
+Vessel (船名),vessel_voyage
+船名,vessel_voyage
+船名航次,vessel_voyage
+Kapal,vessel_voyage
+Buque,vessel_voyage
+Schiff,vessel_voyage
+Navire,vessel_voyage
+Kinds of Packages; Description of Goods (货名),commodity
+Commodity (货名),commodity
+货名,commodity
+货物描述,commodity
+品名,commodity
+Perihal Barang,commodity
+Descripción de la Mercancía,commodity
+Warenbeschreibung,commodity
+Description des Marchandises,commodity
+HS编码,hs_code
+海关编码,hs_code
+B/L NO.(提单号),bl_number
+提单号,bl_number
+Nº de Conocimiento de Embarque,bl_number
+Konnossementnummer,bl_number
+订舱号,booking_no
+Nombor Tempahan,booking_no
+Número de Reserva,booking_no
+Buchungsnummer,booking_no
+运费,freight
+Kargo,freight
+Flete,freight
+Fracht,freight
+Fret,freight
+"Export Carrier (vessel, voyage)",vessel_voyage
+Export Carrier,vessel_voyage
+Voy. No,vessel_voyage
+Voy.,vessel_voyage
+Voyage,vessel_voyage
+Voyage No,vessel_voyage
+Notify Party/Intermediate Consignee,notify_party
+TOTAL Gross Weight (KGS),gross_weight
+Gross Weight (KGS),gross_weight
+Kinds of Packages; Description of Goods,commodity
+Description,commodity
+BL INSTRUCTION,bl_number
+Notify Party/Intermediate Consignee,notify_party
