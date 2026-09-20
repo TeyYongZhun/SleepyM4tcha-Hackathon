@@ -3,13 +3,16 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import JSZip from "jszip";
 import { extractText, getDocumentProxy } from "unpdf";
-import { detectDocKind, parseShipmentText } from "./parse";
+import { detectDocKind, kindFromFilename, parseShipmentText } from "./parse";
 import type { Attachment, ShipmentDocument } from "../types";
 
 const DUMMY_DIR = path.join(process.cwd(), "public", "dummy");
 
 const decodeXml = (s: string) =>
   s
+    // Numeric entities: bilingual templates store "毛重" as "&#27611;&#37325;"
+    .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(Number(n)))
+    .replace(/&#x([0-9a-f]+);/gi, (_, h) => String.fromCodePoint(parseInt(h, 16)))
     .replace(/&lt;/g, "<")
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
@@ -72,12 +75,8 @@ async function fileToText(abs: string, ext: string): Promise<string> {
   return bufferToText(await fs.readFile(abs), ext);
 }
 
-/** When a file can't be read, the filename is the only hint left about what it was. */
-export function kindFromFilename(name: string): ShipmentDocument["kind"] {
-  if (/(^|[_\-. ])SI([_\-. ]|$)/i.test(name)) return "SI";
-  if (/(^|[_\-. ])BL([_\-. ]|$)/i.test(name)) return "BL";
-  return "OTHER";
-}
+// Lives in parse.ts so the comparison can use it without pulling in this server-only module
+export { kindFromFilename };
 
 const cache = new Map<string, Promise<ShipmentDocument | null>>();
 

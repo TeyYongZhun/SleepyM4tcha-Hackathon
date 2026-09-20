@@ -15,11 +15,13 @@ const PREVIEW = [
     selected: true,
   },
   {
-    from: "UPS Freight",
+    from: "Vital Solutions",
     time: "8:02 AM",
-    subject: "Action required: delivery exception",
+    subject: "Please compare the SI and draft BL for 5RSG-19787",
     label: "Requires Human Intervention",
     tone: "bg-warn-bg text-warn",
+    // Says why, so nobody has to open the email to find out
+    reason: "Missing attachment",
   },
   {
     from: "Cargo-Deals-Now",
@@ -61,7 +63,7 @@ const FEATURES = [
   {
     icon: UserCheck,
     title: "Human-in-the-loop",
-    body: "Anything ambiguous is flagged as Requires Human Intervention instead of guessed at.",
+    body: "Anything ambiguous is flagged as Requires Human Intervention, with the reason beside it, instead of guessed at.",
   },
   {
     icon: Mail,
@@ -163,6 +165,7 @@ export default async function LandingPage() {
                     className={`mt-1.5 inline-block rounded-full px-2 py-0.5 text-[10px] font-semibold ${m.tone}`}
                   >
                     {m.label}
+                    {m.reason && <> · {m.reason}</>}
                   </span>
                 </div>
               ))}

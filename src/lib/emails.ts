@@ -11,8 +11,9 @@ import { withShipmentAnalysis } from "./gmail/attachments";
 import type { InboxRow } from "@/components/inbox-pane";
 import { displayName } from "./format";
 import { PAGE_SIZE } from "./paging";
+import { labelFor } from "./shipment";
 import { MOCK_EMAILS } from "./mock-data";
-import type { Email } from "./types";
+import type { Email, ShipmentFieldKey } from "./types";
 
 /**
  * Data access for the dashboard: the one place that decides where emails come
@@ -70,6 +71,11 @@ export function toInboxRow(e: Email): InboxRow {
     attachmentCount: e.attachments.length,
     receivedAt: e.received_at,
     unread: e.unread,
+    reviewReason: e.status === "NEEDS_REVIEW" ? (e.review_reason ?? "unknown") : undefined,
+    mismatchedFields:
+      e.status === "MISMATCH"
+        ? (e.defect_fields ?? []).map((f) => labelFor(f as ShipmentFieldKey))
+        : undefined,
   };
 }
 

@@ -43,6 +43,14 @@ export const REVIEW_REASON_TEXT: Record<ReviewReason, string> = {
   missing_value: "a compared field is blank on one side",
 };
 
+/** Same reasons in a few words, for list rows where the sentence above won't fit. */
+export const REVIEW_REASON_SHORT: Record<ReviewReason, string> = {
+  missing_attachment: "Missing attachment",
+  unreadable: "Unreadable file",
+  wrong_doc_type: "Wrong document type",
+  missing_value: "Missing value",
+};
+
 /** Display label for a field key, falling back to the key itself. */
 export function labelFor(key: ShipmentFieldKey): string {
   return SHIPMENT_FIELDS.find((f) => f.key === key)?.label ?? key;

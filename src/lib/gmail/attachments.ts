@@ -1,5 +1,6 @@
 import "server-only";
 import { bufferToText, kindFromFilename, READABLE_EXTENSIONS } from "../demo/extract";
+import { assessShipmentDocuments, bodyClaimsAttachment } from "../demo/compare";
 import { detectDocKind, parseShipmentText } from "../demo/parse";
 import type { Email, ShipmentDocument, ShipmentFieldComparison } from "../types";
 import { mapPool } from "./api";
@@ -112,12 +113,23 @@ export async function withShipmentAnalysis(token: string, email: Email): Promise
 
   const out: Email = { ...email, shipment_documents: analysed.map((x) => x.doc) };
 
+  // The built-in assessment covers every case, including a missing or unusable
+  // side. The model, when the gateway is up, only replaces the field-by-field
+  // comparison of a clean pair, so a mismatch is never silently shown as nothing.
+  const builtIn = assessShipmentDocuments(out.shipment_documents!, {
+    expectPair: email.category === "bl_comparison",
+    bodyClaimsAttachment: bodyClaimsAttachment(email.body),
+  });
+
   // One of each, or there is no pair to compare. Two BLs and no SI is a
   // question for a person, not something to guess at.
   const sis = analysed.filter((x) => x.doc.kind === "SI");
   const bls = analysed.filter((x) => x.doc.kind === "BL");
-  if (sis.length !== 1 || bls.length !== 1) return out;
+  const modelled =
+    sis.length === 1 && bls.length === 1 && sis[0].doc.readable && bls[0].doc.readable
+      ? await compare(sis[0], bls[0])
+      : null;
 
-  const comparison = await compare(sis[0], bls[0]);
+  const comparison = modelled ?? builtIn;
   return comparison ? { ...out, ...comparison } : out;
 }

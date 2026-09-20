@@ -6,7 +6,8 @@ import type { ShipmentFieldKey, ShipmentFields } from "../types";
  * joined with " | "), so labels are matched by synonym, not by position.
  */
 
-const PAREN = String.raw`(?:\s*\([^)]*\))?`;
+// More than one bracket can follow a label: "Gross Wt (kgs) (毛重 KGS)" leaves "(kgs) ( KGS)"
+const PAREN = String.raw`(?:\s*\([^)]*\))*`;
 
 /** Label synonyms per field, matched case-insensitively at the start of a line. */
 const LABELS: Record<ShipmentFieldKey, string> = {
@@ -98,7 +99,8 @@ export function parseShipmentText(text: string): ShipmentFields {
     let value = hit.inline;
 
     // Gather continuation lines (addresses, or a value on the line below its label)
-    const maxExtra = MULTILINE[key] ?? (value ? 0 : 1);
+    // A block whose label sits alone on its line also spends one line on the name
+    const maxExtra = MULTILINE[key] !== undefined ? MULTILINE[key]! + (value ? 0 : 1) : value ? 0 : 1;
     const extra: string[] = [];
     for (let j = i + 1; j < lines.length && extra.length < maxExtra; j++) {
       if (matchLabel(lines[j].text)) break;
@@ -225,6 +227,13 @@ export function parseEmailBody(subject: string, body: string): ShipmentFields {
 }
 
 export type DocKind = "SI" | "BL" | "OTHER";
+
+/** When a file can't be read, the filename is the only hint left about what it was. */
+export function kindFromFilename(name: string): DocKind {
+  if (/(^|[_\-. ])SI([_\-. ]|$)/i.test(name)) return "SI";
+  if (/(^|[_\-. ])BL([_\-. ]|$)/i.test(name)) return "BL";
+  return "OTHER";
+}
 
 /** Classify by the document's title, found in the first few non-empty lines. */
 export function detectDocKind(text: string): DocKind {

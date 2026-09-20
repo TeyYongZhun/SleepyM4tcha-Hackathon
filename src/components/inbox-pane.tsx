@@ -3,10 +3,11 @@
 import { useRef, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ArrowLeft, ArrowRight, Paperclip } from "lucide-react";
+import { AlertTriangle, ArrowLeft, ArrowRight, Paperclip, UserCheck } from "lucide-react";
 import { getCategoryBySlug, type CategorySlug } from "@/lib/categories";
 import { PAGE_SIZE } from "@/lib/paging";
-import type { EmailCategory } from "@/lib/types";
+import { REVIEW_REASON_SHORT } from "@/lib/shipment";
+import type { EmailCategory, ReviewReason } from "@/lib/types";
 import { CategoryBadge } from "./category-badge";
 import { LocalTime } from "./local-time";
 
@@ -19,6 +20,17 @@ export interface InboxRow {
   attachmentCount: number;
   receivedAt?: string;
   unread?: boolean;
+  /**
+   * Set only when the email needs a person. "unknown" = it does, but the source
+   * gave no reason. Absent = fine, or not known: only sources that read the
+   * attachments up front can say.
+   */
+  reviewReason?: ReviewReason | "unknown";
+  /**
+   * Set only when the SI and BL disagree: the fields that differ, by display
+   * name (empty if the source didn't say which). Absent = agree, or not known.
+   */
+  mismatchedFields?: string[];
 }
 
 /** One page of the inbox, as /api/inbox returns it. */
@@ -132,8 +144,21 @@ export function InboxPane({
                 />
               </div>
               <p className="truncate text-[12.5px] leading-snug text-ink">{row.subject}</p>
-              <div className="mt-1 flex items-center gap-1.5">
+              <div className="mt-1 flex flex-wrap items-center gap-1.5">
                 <CategoryBadge category={row.category} />
+                {row.mismatchedFields && (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-bad-bg px-2 py-0.5 text-[10px] font-semibold text-bad">
+                    <AlertTriangle size={11} aria-hidden />
+                    Mismatch{mismatchSummary(row.mismatchedFields)}
+                  </span>
+                )}
+                {row.reviewReason && (
+                  <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-warn-bg px-2 py-0.5 text-[10px] font-semibold text-warn">
+                    <UserCheck size={11} aria-hidden />
+                    Needs review
+                    {row.reviewReason !== "unknown" && <> · {REVIEW_REASON_SHORT[row.reviewReason]}</>}
+                  </span>
+                )}
                 {row.attachmentCount > 0 && (
                   <span className="inline-flex items-center gap-0.5 text-[11px] text-ink-soft">
                     <Paperclip size={13} aria-hidden />
@@ -173,6 +198,12 @@ export function InboxPane({
       </div>
     </section>
   );
+}
+
+/** " · Consignee, Notify Party", or just a count once naming them would crowd the row. */
+function mismatchSummary(fields: string[]): string {
+  if (fields.length === 0) return "";
+  return fields.length <= 2 ? ` · ${fields.join(", ")}` : ` · ${fields.length} fields`;
 }
 
 function PagerButton({

@@ -1,8 +1,9 @@
 import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
-import type { Attachment, Email } from "../types";
+import type { Attachment, Email, ShipmentDocument } from "../types";
 import { buildDemoSummary, classifyDemoEmail } from "./classify";
+import { assessShipmentDocuments, bodyClaimsAttachment } from "./compare";
 import { analyzeAttachments } from "./extract";
 import { parseEmailBody } from "./parse";
 
@@ -41,7 +42,7 @@ async function toAttachment(rel: string): Promise<Attachment> {
 async function adapt(raw: DummyEmail): Promise<Email> {
   const attachments = await Promise.all(raw.attachments.map(toAttachment));
   const { category, reason } = classifyDemoEmail(raw);
-  return {
+  const email: Email = {
     email_id: raw.email_id,
     from: { email: raw.from },
     to: [],
@@ -54,6 +55,30 @@ async function adapt(raw: DummyEmail): Promise<Email> {
     shipment_info: parseEmailBody(raw.subject, raw.body),
     summary: buildDemoSummary(raw, category, reason, attachments.length),
   };
+
+  // The list needs to know which emails want a person, and why, so it reads the
+  // attachments of every BL comparison up front (each file is parsed once and
+  // cached; opening the email reuses it). Only the verdict goes on the row:
+  // the field-by-field rows belong to the detail view.
+  const docs = await analyzeAttachments(attachments);
+  const verdict = shipmentVerdict(email, docs);
+  return verdict
+    ? {
+        ...email,
+        status: verdict.status,
+        review_reason: verdict.review_reason,
+        defect_fields: verdict.defect_fields,
+      }
+    : email;
+}
+
+/** SI-vs-BL verdict. Only BL comparisons are meant to carry a pair to check. */
+function shipmentVerdict(email: Email, docs: ShipmentDocument[]) {
+  if (email.category !== "bl_comparison") return null;
+  return assessShipmentDocuments(docs, {
+    expectPair: true,
+    bodyClaimsAttachment: bodyClaimsAttachment(email.body),
+  });
 }
 
 let cache: Promise<Email[]> | undefined;
@@ -79,5 +104,7 @@ export function loadDemoEmails(): Promise<Email[]> {
 export async function loadDemoEmail(emailId: string): Promise<Email | undefined> {
   const email = (await loadDemoEmails()).find((e) => e.email_id === emailId);
   if (!email) return undefined;
-  return { ...email, shipment_documents: await analyzeAttachments(email.attachments) };
+  const shipment_documents = await analyzeAttachments(email.attachments);
+  // Without this the checklist has no verdict to show and a mismatch looks like a match
+  return { ...email, shipment_documents, ...shipmentVerdict(email, shipment_documents) };
 }
