@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { getCategoryBySlug, type CategorySlug } from "@/lib/categories";
 import { PAGE_SIZE } from "@/lib/paging";
+import { setRead, useReadIds } from "@/lib/read-state";
 import { useResolvedIds } from "@/lib/resolved";
 import { REVIEW_REASON_SHORT } from "@/lib/shipment";
 import type { EmailCategory, ReviewReason } from "@/lib/types";
@@ -105,17 +106,18 @@ export function InboxPane({
   const seekDir = useRef<1 | -1>(1);
   const exhausted = useRef(false);
 
-  /** Optimistic: clears the dot right away, then tells the server so it sticks past a reload. */
+  /**
+   * Clears the dot at once and remembers it in this browser, so it stays gone after a
+   * reload whatever the source; then tells the server, which for Gmail clears the real
+   * UNREAD label (the other sources have nothing to update).
+   */
   function markRead(id: string) {
-    setView((v) => ({
-      ...v,
-      rows: v.rows.map((r) => (r.id === id && r.unread ? { ...r, unread: false } : r)),
-    }));
+    setRead(id, true);
     fetch("/api/inbox/read", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ id }),
-    }).catch(() => {}); // best-effort; the dot already cleared locally
+    }).catch(() => {}); // best-effort; already remembered locally
   }
 
   async function goTo(page: number, dir?: 1 | -1) {
@@ -135,7 +137,19 @@ export function InboxPane({
   }
 
   const resolvedIds = useResolvedIds();
-  const rows = view.rows.map((r) => (resolvedIds.has(r.id) ? { ...r, resolved: true } : r));
+  const readIds = useReadIds();
+  const rows = view.rows.map((r) => ({
+    ...r,
+    resolved: r.resolved || resolvedIds.has(r.id),
+    unread: r.unread && !readIds.has(r.id),
+  }));
+
+  // Opening an email any other way than clicking its row (a link, a reload, the
+  // back button) counts as reading it too.
+  useEffect(() => {
+    if (activeId && rows.some((r) => r.id === activeId && r.unread)) markRead(activeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeId, view]);
 
   const category = getCategoryBySlug(slug)?.category;
   const filterHere = !view.filtered && !!category;
