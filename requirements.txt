@@ -1,0 +1,26 @@
+# Python dependencies for the whole repo: both ML projects plus the FastAPI
+# gateway that serves them to the Next.js frontend.
+#
+#   .venv/Scripts/python.exe -m pip install -r requirements.txt
+#
+# The per-project files (sdoc_classifier/requirements.txt,
+# sdoc_comparator/requirements.txt) still work if you only want one of them.
+
+# --- shared by both models ---
+scikit-learn
+joblib
+numpy
+scipy
+
+# --- sdoc_comparator: reading SI/BL attachments ---
+pandas
+openpyxl          # .xlsx
+pdfplumber        # .pdf
+
+# --- FastAPI gateway (backend/) ---
+fastapi
+uvicorn[standard]
+python-multipart   # UploadFile on POST /compare
+
+# --- tests ---
+pytest

@@ -1,0 +1,56 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+# ---- Python ML projects (sdoc_classifier / sdoc_comparator) ----
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+sdoc_classifier/out/
+sdoc_comparator/output/
+
+# NOTE: sdoc_classifier/data/ and sdoc_classifier/models/ are deliberately
+# COMMITTED here (the YongZhun branch ignored them). The merged repo needs the
+# 520-email dataset and the trained classifier.joblib so the app and the
+# FastAPI gateway run from a fresh clone with no extra setup.

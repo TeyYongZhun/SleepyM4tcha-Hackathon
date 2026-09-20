@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#93c5fd"/><stop offset="1" stop-color="#e0f2fe"/>
+    </linearGradient>
+  </defs>
+  <rect width="960" height="540" fill="url(#sky)"/>
+  <rect y="400" width="960" height="140" fill="#64748b"/>
+  <g>
+    <rect x="80" y="230" width="220" height="170" fill="#dc2626"/><rect x="80" y="230" width="220" height="14" fill="#991b1b"/>
+    <rect x="310" y="230" width="220" height="170" fill="#2563eb"/><rect x="310" y="230" width="220" height="14" fill="#1e40af"/>
+    <rect x="540" y="230" width="220" height="170" fill="#f59e0b"/><rect x="540" y="230" width="220" height="14" fill="#b45309"/>
+    <rect x="195" y="60" width="220" height="165" fill="#16a34a"/><rect x="195" y="60" width="220" height="14" fill="#166534"/>
+    <rect x="425" y="60" width="220" height="165" fill="#7c3aed"/><rect x="425" y="60" width="220" height="14" fill="#5b21b6"/>
+  </g>
+  <g fill="#fff" font-family="monospace" font-size="20" font-weight="bold" opacity=".9">
+    <text x="100" y="380">MSKU 482913 7</text>
+    <text x="330" y="380">TGHU 118220 4</text>
+    <text x="560" y="380">CMAU 903351 0</text>
+  </g>
+  <text x="24" y="518" fill="#fff" font-family="sans-serif" font-size="16">Sample photo: container damage inspection (mock attachment)</text>
+</svg>

@@ -1,0 +1,63 @@
+label_text,canonical_field
+SHIPPER,shipper
+CONSIGNEE,consignee
+Notify,notify_party
+Port of Loading (POL),port_of_loading
+POD,port_of_discharge
+Container Count,container_count
+Gross Wt (kgs),gross_weight
+Vessel Name,vessel_voyage
+Voyage,vessel_voyage
+Commodity,commodity
+Bill of Lading No.,bl_number
+Booking Ref,booking_no
+Freight,freight
+Shipper/Exporter,shipper
+NOTIFY PARTY,notify_party
+Port of Loading,port_of_loading
+Discharge Port,port_of_discharge
+No. of Containers or Packages,container_count
+Gross Weight (KG),gross_weight
+Voy. No,vessel_voyage
+Kinds of Packages; Description of Goods,commodity
+HS Code,hs_code
+OC No.,oc_number
+To the Order of,consignee
+Notify Party,notify_party
+"Export Carrier (vessel, voyage)",vessel_voyage
+Shipper,shipper
+Consignee (Non-Negotiable),consignee
+Total Containers,container_count
+Vessel,vessel_voyage
+BILL OF LADING,bl_number
+Shipper (Principal or Seller),shipper
+Load Port,port_of_loading
+HS CODE,hs_code
+B/L No.,bl_number
+FREIGHT,freight
+BL INSTRUCTION,bl_number
+Port of Discharge,port_of_discharge
+GROSS WEIGHT,gross_weight
+Description of Goods,commodity
+BOOKING NO.,booking_no
+POL,port_of_loading
+Ocean Vessel,vessel_voyage
+Booking No.,booking_no
+Voy.,vessel_voyage
+Description,commodity
+Booking Reference,booking_no
+Gross Weight毛重(KGS),gross_weight
+Port of Discharge (POD),port_of_discharge
+No. of Containers,container_count
+Consignee,consignee
+PORT OF LOADING,port_of_loading
+Notify Party/Intermediate Consignee,notify_party
+Voyage No.,vessel_voyage
+B/L NUMBER,bl_number
+PORT OF DISCHARGE,port_of_discharge
+BL No.,bl_number
+vessel,vessel_voyage
+GROSS WEIGHT (KG),gross_weight
+TOTAL Gross Weight (KG),gross_weight
+OC NO.,oc_number
+TOTAL Gross Wt (kgs),gross_weight

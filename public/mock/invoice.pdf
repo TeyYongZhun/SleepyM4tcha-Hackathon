@@ -1,0 +1,46 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R /F2 6 0 R >> >> >>
+endobj
+4 0 obj
+<< /Length 904 >>
+stream
+BT /F2 22 Tf 56 780 Td (COMMERCIAL INVOICE) Tj ET
+BT /F1 12 Tf 56 744 Td (Invoice No: INV-2026-00481        Date: 12 Sep 2026) Tj ET
+BT /F1 12 Tf 56 718 Td (Shipper: Pacific Components Ltd, Shenzhen, CN) Tj ET
+BT /F1 12 Tf 56 692 Td (Consignee: Averis Trading Pty Ltd, Melbourne, AU) Tj ET
+BT /F1 12 Tf 56 666 Td (Container: MSKU4829137   B/L: MAEU229184776) Tj ET
+BT /F1 12 Tf 56 640 Td (----------------------------------------------------------) Tj ET
+BT /F1 12 Tf 56 614 Td (12 x Pallet - Electronic components (HS 8542.31)   USD 18,400.00) Tj ET
+BT /F1 12 Tf 56 588 Td (4 x Pallet - Cable assemblies (HS 8544.42)        USD  6,250.00) Tj ET
+BT /F1 12 Tf 56 562 Td (Freight                                            USD  2,100.00) Tj ET
+BT /F2 14 Tf 56 536 Td (TOTAL                                              USD 26,750.00) Tj ET
+BT /F1 10 Tf 56 508 Td (Sample document (mock attachment).) Tj ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+6 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+xref
+0 7
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000251 00000 n 
+0000001205 00000 n 
+0000001275 00000 n 
+trailer
+<< /Size 7 /Root 1 0 R >>
+startxref
+1350
+%%EOF

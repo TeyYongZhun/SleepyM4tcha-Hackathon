@@ -1,0 +1,37 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.pyc
+
+# Trained model (recreate with: python src/train_label_classifier.py)
+models/*.joblib
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db
+
+# Sample documents (kept local, only demo_docs is shared)
+data/sample_docs/
+
+# ---- Node / Next.js frontend (Benjamin branch lives here too) ----
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# ---- Secrets: never commit ----
+.env
+.env*.local
+!.env.example
+
+# ...except the label classifier itself, which IS committed here so the repo
+# runs from a fresh clone with no training step. It matches
+# sdoc_classifier/models/classifier.joblib, which is committed for the same
+# reason. Retrain with: python src/train_label_classifier.py
+!models/label_classifier.joblib
