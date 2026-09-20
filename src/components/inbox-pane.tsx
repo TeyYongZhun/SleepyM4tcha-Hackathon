@@ -246,12 +246,13 @@ function mismatchSummary(fields: string[]): string {
 
 type StatusFilter = "all" | "mismatch" | "review" | "draft" | "match";
 
-const STATUS_FILTERS: { value: StatusFilter; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "mismatch", label: "Mismatch" },
-  { value: "review", label: "Needs review" },
-  { value: "draft", label: "Draft BL" },
-  { value: "match", label: "Match" },
+// Same tones as the row badges below, so a selected pill previews what it filters to.
+const STATUS_FILTERS: { value: StatusFilter; label: string; tone: string }[] = [
+  { value: "all", label: "All", tone: "border-ink bg-ink text-paper" },
+  { value: "match", label: "Match", tone: "border-transparent bg-good-bg text-good" },
+  { value: "mismatch", label: "Mismatch", tone: "border-transparent bg-bad-bg text-bad" },
+  { value: "draft", label: "Draft BL", tone: "border-transparent bg-info-bg text-info" },
+  { value: "review", label: "Needs review", tone: "border-transparent bg-warn-bg text-warn" },
 ];
 
 function matchesStatus(row: InboxRow, status: StatusFilter): boolean {
@@ -286,9 +287,7 @@ function StatusFilterButtons({
           aria-pressed={value === f.value}
           onClick={() => onChange(f.value)}
           className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
-            value === f.value
-              ? "border-ink bg-ink text-paper"
-              : "border-line text-ink-soft hover:bg-paper-2"
+            value === f.value ? f.tone : "border-line text-ink-soft hover:bg-paper-2"
           }`}
         >
           {f.label}
