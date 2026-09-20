@@ -5,23 +5,39 @@ import { DemoSignInButton, SignInButton } from "@/components/auth-buttons";
 import { Logo } from "@/components/logo";
 import { ThemeToggle } from "@/components/theme-toggle";
 
+// One row per category (src/lib/categories.ts), same tones as the real dashboard,
+// so this preview is a fair sample of the tabs, not just a mock-up.
 const PREVIEW = [
-  {
-    from: "DHL Express",
-    time: "Yesterday",
-    subject: "Customs clearance completed — Booking DHL9273841",
-    label: "Relevant",
-    tone: "bg-good-bg text-good",
-    selected: true,
-  },
   {
     from: "Vital Solutions",
     time: "8:02 AM",
-    subject: "Please compare the SI and draft BL for 5RSG-19787",
-    label: "Requires Human Intervention",
-    tone: "bg-warn-bg text-warn",
+    subject: "REQUEST BL DRAFT _ PO 26067 _ COATED IVORY BOARD",
+    label: "BL Comparison",
+    tone: "bg-info-bg text-info",
+    selected: true,
     // Says why, so nobody has to open the email to find out
-    reason: "Missing attachment",
+    reason: "Mismatch · Consignee, Notify Party",
+  },
+  {
+    from: "Pacific Rim Trading",
+    time: "Yesterday",
+    subject: "SI NEEDED _ 5ABC-88123 _ Gulf Paper Supplies LLC",
+    label: "SI Request",
+    tone: "bg-good-bg text-good",
+  },
+  {
+    from: "Fujito Group",
+    time: "9:14 AM",
+    subject: "RE_ LOCAL CHARGES FOB - KARGOSMAR - 5AKR-61841",
+    label: "Invoice Query",
+    tone: "bg-warn-bg text-warn",
+  },
+  {
+    from: "DHL Express",
+    time: "Fri",
+    subject: "Customs clearance completed — Booking DHL9273841",
+    label: "General",
+    tone: "bg-mute-bg text-mute",
   },
   {
     from: "Cargo-Deals-Now",
@@ -29,13 +45,6 @@ const PREVIEW = [
     subject: "WIN a free container shipment today",
     label: "Spam",
     tone: "bg-bad-bg text-bad",
-  },
-  {
-    from: "Netflix",
-    time: "Fri",
-    subject: "Your September statement is ready",
-    label: "Unrelated",
-    tone: "bg-mute-bg text-mute",
   },
 ];
 
@@ -46,7 +55,7 @@ const STEPS = [
   },
   {
     title: "AI classifies every message",
-    body: "Each email is sorted into All, Relevant, Spam, Requires Human Intervention, or Unrelated.",
+    body: "Each email is sorted into BL Comparison, SI Request, Invoice Query, General or Spam — and a BL Comparison email also gets a match/mismatch verdict against its SI.",
   },
   {
     title: "Review side by side",
@@ -63,7 +72,7 @@ const FEATURES = [
   {
     icon: UserCheck,
     title: "Human-in-the-loop",
-    body: "Anything ambiguous is flagged as Requires Human Intervention, with the reason beside it, instead of guessed at.",
+    body: "A mismatch or an unreadable attachment is flagged — “Mismatch · Consignee, Notify Party”, “Needs review · Missing attachment” — with the reason beside it, instead of guessed at.",
   },
   {
     icon: Mail,
