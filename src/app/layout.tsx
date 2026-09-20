@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans, Space_Grotesk } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 
 const plex = IBM_Plex_Sans({
@@ -34,14 +33,13 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${plex.variable} ${grotesk.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <body className="flex min-h-full flex-col">
-        {/* next/script (not a raw <script>): React 19 warns about scripts rendered in components.
-            beforeInteractive puts it in <head>, executed before first paint. */}
-        <Script id="theme-init" strategy="beforeInteractive">
-          {THEME_INIT}
-        </Script>
-        {children}
-      </body>
+      <head>
+        {/* dangerouslySetInnerHTML, not a child string or next/script: React renders
+            this straight into the server HTML, so it runs before first paint and is
+            never treated as a client-rendered script (which would never execute). */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT }} />
+      </head>
+      <body className="flex min-h-full flex-col">{children}</body>
     </html>
   );
 }
