@@ -49,6 +49,16 @@ export function SummaryPanel({ email }: { email: Email }) {
           <ResolveButton emailId={email.email_id} status={email.status} />
         </div>
 
+        {email.category === "bl_comparison" && !email.status && (
+          <div className="mb-4 flex items-start gap-2 rounded-lg bg-info-bg px-3 py-2.5 text-info">
+            <FileText size={15} className="mt-px shrink-0" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-[12.5px] font-semibold">Draft BL</p>
+              <p className="mt-0.5 text-[11.5px] opacity-90">No SI and BL pair to compare yet.</p>
+            </div>
+          </div>
+        )}
+
         {email.status && (
           <StatusBox
             emailId={email.email_id}
