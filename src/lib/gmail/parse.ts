@@ -137,6 +137,6 @@ export function parseMessage(msg: GmailMessage): Email {
     received_at,
     unread: msg.labelIds?.includes("UNREAD"),
     attachments,
-    category: "unrelated", // placeholder until enrich()
+    category: "general", // placeholder until enrich()
   };
 }

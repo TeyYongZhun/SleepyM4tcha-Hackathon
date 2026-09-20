@@ -36,6 +36,8 @@
   --color-warn-bg: #fbeedc;
   --color-mute: #6b7280;
   --color-mute-bg: #eef0f2;
+  --color-info: #2f6ba8;
+  --color-info-bg: #e4ecf6;
 }
 
 html[data-theme="dark"] {
@@ -61,6 +63,8 @@ html[data-theme="dark"] {
   --color-warn-bg: #33270f;
   --color-mute: #a3aab8;
   --color-mute-bg: #232a3b;
+  --color-info: #6fa8dc;
+  --color-info-bg: #14243a;
 }
 
 html {

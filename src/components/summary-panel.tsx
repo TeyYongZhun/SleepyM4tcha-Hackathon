@@ -1,13 +1,37 @@
-import { Ban, ShieldAlert, ShieldCheck, UserCheck, type LucideIcon } from "lucide-react";
+import {
+  AlertTriangle,
+  Bell,
+  CheckCircle2,
+  FileText,
+  Receipt,
+  ShieldAlert,
+  UserCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { getCategoryByEmailCategory } from "@/lib/categories";
-import type { Email, EmailCategory } from "@/lib/types";
+import type { ComparisonStatus, Email, EmailCategory, ReviewReason } from "@/lib/types";
 import { ShipmentChecklist } from "./shipment-checklist";
 
 const CATEGORY_ICON: Record<EmailCategory, LucideIcon> = {
-  relevant: ShieldCheck,
+  bl_comparison: FileText,
+  si_request: Bell,
+  invoice_query: Receipt,
+  general: Bell,
   spam: ShieldAlert,
-  human_intervention: UserCheck,
-  unrelated: Ban,
+};
+
+/** SI-vs-BL verdict. A separate axis from the category, so it gets its own badge. */
+const STATUS_META: Record<ComparisonStatus, { label: string; badge: string; icon: LucideIcon }> = {
+  OK: { label: "SI and BL match", badge: "bg-good-bg text-good", icon: CheckCircle2 },
+  MISMATCH: { label: "Mismatch found", badge: "bg-bad-bg text-bad", icon: AlertTriangle },
+  NEEDS_REVIEW: { label: "Needs human review", badge: "bg-warn-bg text-warn", icon: UserCheck },
+};
+
+const REVIEW_REASON_TEXT: Record<ReviewReason, string> = {
+  missing_attachment: "only one of the SI / BL was received",
+  unreadable: "a document could not be read (empty, corrupt, or a scan with no text)",
+  wrong_doc_type: "an attachment is not an SI or BL",
+  missing_value: "a compared field is blank on one side",
 };
 
 const LABEL = "text-[10.5px] font-semibold tracking-wide text-ink-soft uppercase";
@@ -20,6 +44,7 @@ export function SummaryPanel({ email }: { email: Email }) {
   const s = email.summary;
   const meta = getCategoryByEmailCategory(email.category);
   const Icon = CATEGORY_ICON[email.category];
+  const status = email.status ? STATUS_META[email.status] : undefined;
   const confidence = s?.confidence !== undefined ? Math.round(s.confidence * 100) : undefined;
 
   return (
@@ -44,6 +69,25 @@ export function SummaryPanel({ email }: { email: Email }) {
             )}
           </div>
         </div>
+
+        {status && (
+          <div className={`mb-4 flex items-start gap-2 rounded-lg px-3 py-2.5 ${status.badge}`}>
+            <status.icon size={15} className="mt-px shrink-0" aria-hidden />
+            <div className="min-w-0">
+              <p className="text-[12.5px] font-semibold">{status.label}</p>
+              {email.review_reason && (
+                <p className="mt-0.5 text-[11.5px] opacity-90">
+                  {REVIEW_REASON_TEXT[email.review_reason]}
+                </p>
+              )}
+              {!!email.defect_fields?.length && (
+                <p className="mt-0.5 text-[11.5px] opacity-90">
+                  Differs on: {email.defect_fields.join(", ").replace(/_/g, " ")}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
 
         {confidence !== undefined && (
           <div

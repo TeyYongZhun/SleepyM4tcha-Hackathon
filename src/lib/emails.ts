@@ -2,7 +2,7 @@ import "server-only";
 import { cache } from "react";
 import { auth } from "@/auth";
 import type { CategorySlug } from "./categories";
-import { getCategoryBySlug } from "./categories";
+import { CATEGORIES, getCategoryBySlug } from "./categories";
 import { ApiError, backendEnabled, request } from "./api/client";
 import { routes } from "./api/routes";
 import { loadDemoEmail, loadDemoEmails } from "./demo/load";
@@ -108,12 +108,9 @@ export function filterEmails(emails: Email[], slug: CategorySlug): Email[] {
   return category ? emails.filter((e) => e.category === category) : emails;
 }
 
+/** Derived from CATEGORIES, so adding a category needs no change here. */
 export function countByCategory(emails: Email[]): Record<CategorySlug, number> {
-  return {
-    all: emails.length,
-    relevant: filterEmails(emails, "relevant").length,
-    spam: filterEmails(emails, "spam").length,
-    "human-intervention": filterEmails(emails, "human-intervention").length,
-    unrelated: filterEmails(emails, "unrelated").length,
-  };
+  const counts = {} as Record<CategorySlug, number>;
+  for (const { slug } of CATEGORIES) counts[slug] = filterEmails(emails, slug).length;
+  return counts;
 }

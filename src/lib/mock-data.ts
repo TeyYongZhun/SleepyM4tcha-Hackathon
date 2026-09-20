@@ -33,7 +33,7 @@ export const MOCK_EMAILS: Email[] = [
     body_type: "text",
     received_at: "2026-09-19T01:14:00Z",
     unread: true,
-    category: "relevant",
+    category: "general",
     body: `Your package with tracking number 784512396482 has left the origin facility and is now in transit.
 
 Estimated delivery: Monday, 22 September 2026, by end of day.
@@ -63,7 +63,7 @@ You can track this shipment in real time using the tracking number above on fede
     subject: "Customs clearance completed — Booking DHL9273841",
     body_type: "text",
     received_at: "2026-09-18T01:42:00Z",
-    category: "relevant",
+    category: "general",
     body: `Your shipment (Booking Ref: DHL9273841) has cleared customs at Kuala Lumpur International Airport as of 14 September 2026, 09:42 MYT.
 
 No further duties are owed. The shipment has been handed to our last-mile courier partner and is expected to arrive within 1–2 business days.
@@ -91,13 +91,52 @@ If you have any questions about this shipment, reply to this email or contact su
     },
   },
   {
+    email_id: "e12",
+    from: { name: "Chan Wei Ling", email: "weiling.chan@pacificrimtrading.com" },
+    to: you,
+    subject: "SI required for booking 5ABC-88123",
+    body_type: "text",
+    received_at: "2026-09-16T08:40:00Z",
+    category: "si_request",
+    body: `Hi team,
+
+Kindly raise the shipping instruction for booking 5ABC-88123. Details below:
+
+POL: Port Klang, Malaysia POD: Jebel Ali, UAE
+Shipper: Pacific Rim Trading Sdn Bhd
+Consignee: Gulf Paper Supplies LLC
+Description of Goods: Uncoated woodfree paper, 18 pallets
+H.S. CODE: 4802.55
+
+Cut-off is Thursday, so please submit to the carrier before then.
+
+Thanks,
+Wei Ling`,
+    attachments: [],
+    summary: {
+      headline: "Shipping instruction requested",
+      summary:
+        "Customer asks for the SI for booking 5ABC-88123 to be raised and submitted before Thursday's cut-off. SI details are given in the body.",
+      reason: "Asks for a shipping instruction to be prepared, issued or submitted.",
+      confidence: 0.94,
+      fields: [
+        { label: "Booking", value: "5ABC-88123" },
+        { label: "POL", value: "Port Klang, Malaysia" },
+        { label: "POD", value: "Jebel Ali, UAE" },
+        { label: "H.S. Code", value: "4802.55" },
+      ],
+      actions: ["Raise the SI and submit to the carrier before Thursday's cut-off."],
+      sentiment: "Urgent",
+    },
+  },
+  {
     email_id: "e3",
     from: { name: "Maersk Line", email: "notifications@maersk.com" },
     to: you,
     subject: "Bill of Lading attached — Booking MSKU7734521",
     body_type: "text",
     received_at: "2026-09-16T03:05:00Z",
-    category: "relevant",
+    category: "bl_comparison",
     body: `Please find attached the final Bill of Lading for booking MSKU7734521.
 
 Vessel: MV Maersk Selayang, Voyage 214W. Port of Loading: Port Klang. Port of Discharge: Rotterdam.
@@ -139,7 +178,7 @@ Please review the document and contact your account manager if any details need 
     subject: "Vessel ETA update — arriving Port Klang 24 Sep",
     body_type: "text",
     received_at: "2026-09-14T06:20:00Z",
-    category: "relevant",
+    category: "general",
     body: `This is an updated ETA for your container CBHU4471290, carried aboard MV Ever Given II.
 
 New estimated arrival at Port Klang: 24 September 2026 (previously 22 September).
@@ -168,7 +207,7 @@ The delay is due to a routing change at the transshipment port. We apologize for
     body_type: "text",
     received_at: "2026-09-19T00:02:00Z",
     unread: true,
-    category: "human_intervention",
+    category: "general",
     body: `We attempted delivery of shipment 1Z9F821 today but were unable to complete it — the address on file could not be verified.
 
 To avoid the shipment being returned to sender, please confirm or correct the delivery address within 48 hours.
@@ -197,7 +236,7 @@ You can respond directly to this email with the corrected address, or update it 
     body_type: "text",
     received_at: "2026-09-15T04:30:00Z",
     unread: true,
-    category: "human_intervention",
+    category: "invoice_query",
     body: `Your shipment cannot proceed through customs until the attached import declaration is signed.
 
 Please print, sign and return the attached form within 2 business days to avoid storage fees at the port.
@@ -225,7 +264,7 @@ If you'd prefer, reply to this email and we can arrange an e-signature link inst
     subject: "Please confirm pickup time for consignment APX-55210",
     body_type: "text",
     received_at: "2026-09-14T02:10:00Z",
-    category: "human_intervention",
+    category: "general",
     body: `We have a pickup window available for consignment APX-55210 on either 22 or 23 September, between 9 AM and 1 PM.
 
 Please reply with your preferred date so we can confirm the driver schedule.
@@ -296,7 +335,7 @@ This request will expire in 24 hours.`,
     subject: "Your September statement is ready",
     body_type: "text",
     received_at: "2026-09-12T10:00:00Z",
-    category: "unrelated",
+    category: "invoice_query",
     body: `Your September billing statement is now available in your account.
 
 Amount charged: as per your current plan. No action is needed unless you'd like to update your payment method.`,
@@ -316,7 +355,7 @@ Amount charged: as per your current plan. No action is needed unless you'd like 
     subject: "Notes from today's sync",
     body_type: "text",
     received_at: "2026-09-11T09:00:00Z",
-    category: "unrelated",
+    category: "general",
     body: `Here is a summary of what was discussed in today's team sync.
 
 Action items were assigned in the shared doc. Next sync is Thursday at the usual time.`,

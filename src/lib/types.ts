@@ -3,11 +3,30 @@
  * these types in `lib/emails.ts` (single place) so the UI doesn't change.
  */
 
+/**
+ * The five shipping-document categories the classifier predicts. Same labels as
+ * sdoc_classifier/data/ground_truth.json (BL_COMPARISON, SI_REQUEST, ...),
+ * lower-cased: the backend sends them verbatim and `adaptCategory` normalises.
+ */
 export type EmailCategory =
-  | "relevant"
-  | "spam"
-  | "human_intervention"
-  | "unrelated";
+  | "bl_comparison"
+  | "si_request"
+  | "invoice_query"
+  | "general"
+  | "spam";
+
+/**
+ * Verdict of the SI-vs-BL comparison. Only meaningful for `bl_comparison`
+ * emails; a separate axis from the category, exactly as in ground_truth.json.
+ */
+export type ComparisonStatus = "OK" | "MISMATCH" | "NEEDS_REVIEW";
+
+/** Why a pair could not be checked and needs a person (NEEDS_REVIEW only). */
+export type ReviewReason =
+  | "missing_attachment"
+  | "unreadable"
+  | "wrong_doc_type"
+  | "missing_value";
 
 export interface UserInfo {
   id: string;
@@ -93,4 +112,10 @@ export interface Email {
   shipment_info?: ShipmentFields;
   /** Analysed attachments (SI / BL). Absent = not analysed. */
   shipment_documents?: ShipmentDocument[];
+  /** SI-vs-BL verdict. Absent = not compared (not a BL_COMPARISON email, or no document pair). */
+  status?: ComparisonStatus;
+  /** Set only when `status` is "NEEDS_REVIEW". */
+  review_reason?: ReviewReason | null;
+  /** Canonical field keys that differ between SI and BL (`status` = "MISMATCH"). */
+  defect_fields?: string[];
 }
