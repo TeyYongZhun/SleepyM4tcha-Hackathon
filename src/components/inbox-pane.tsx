@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -10,6 +10,7 @@ import {
   CheckCheck,
   CheckCircle2,
   Paperclip,
+  RefreshCw,
   UserCheck,
 } from "lucide-react";
 import { getCategoryBySlug, type CategorySlug } from "@/lib/categories";
@@ -94,6 +95,7 @@ export function InboxPane({
 }) {
   const { emailId } = useParams<{ emailId?: string }>();
   const activeId = emailId ? decodeURIComponent(emailId) : undefined;
+  const router = useRouter();
 
   const [view, setView] = useState<InboxPageData>(initial);
   const [loading, setLoading] = useState(false);
@@ -120,12 +122,14 @@ export function InboxPane({
     }).catch(() => {}); // best-effort; already remembered locally
   }
 
-  async function goTo(page: number, dir?: 1 | -1) {
+  async function goTo(page: number, dir?: 1 | -1, reload = false) {
     if (dir) seekDir.current = dir;
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/inbox?page=${page}&category=${slug}`);
+      const res = await fetch(
+        `/api/inbox?page=${page}&category=${slug}${reload ? "&refresh=1" : ""}`,
+      );
       if (!res.ok) throw new Error((await res.text()) || `Failed (${res.status})`);
       setView((await res.json()) as InboxPageData);
       scroller.current?.scrollTo({ top: 0 });
@@ -134,6 +138,22 @@ export function InboxPane({
     } finally {
       setLoading(false);
     }
+  }
+
+  /**
+   * Back to the newest 50 messages, read from the source again rather than from anything held.
+   * Page 1 is the only page new mail can arrive on, and refreshing some page deep in the
+   * inbox would leave the new messages unseen anyway.
+   *
+   * `router.refresh()` afterwards updates what the server rendered around the list -- the
+   * category tab counts, and the open email. The list is already up to date by then, so that
+   * reads what this just fetched instead of fetching again.
+   */
+  async function refresh() {
+    exhausted.current = false;
+    seekDir.current = 1;
+    await goTo(1, undefined, true);
+    router.refresh();
   }
 
   const resolvedIds = useResolvedIds();
@@ -202,9 +222,21 @@ export function InboxPane({
       }`}
     >
       <div className="shrink-0 px-[18px] pt-3 pb-1">
-        <h2 className="text-sm font-semibold">
-          {title} <span className="font-normal text-ink-soft">· {count}</span>
-        </h2>
+        <div className="flex items-center gap-2">
+          <h2 className="min-w-0 flex-1 truncate text-sm font-semibold">
+            {title} <span className="font-normal text-ink-soft">· {count}</span>
+          </h2>
+          <button
+            type="button"
+            onClick={refresh}
+            disabled={loading}
+            aria-label="Refresh inbox"
+            title="Refresh inbox"
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-ink-soft transition hover:bg-paper-2 hover:text-ink disabled:opacity-40 disabled:hover:bg-transparent"
+          >
+            <RefreshCw size={15} className={loading ? "animate-spin" : undefined} aria-hidden />
+          </button>
+        </div>
         {showStatusFilter && (
           <div className="mt-2">
             <StatusFilterButtons value={status} onChange={changeStatus} />

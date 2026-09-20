@@ -79,7 +79,7 @@ export default function DashboardError({
         <button
           type="button"
           onClick={reset}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-btn px-4 py-2 text-[13px] font-semibold text-on-btn transition hover:bg-btn-hover"
+          className="inline-flex items-center gap-1.5 rounded-lg bg-btn px-4 py-2 text-[13px] font-semibold text-on-btn btn-lift hover:bg-btn-hover"
         >
           <RotateCw size={14} aria-hidden />
           Try again

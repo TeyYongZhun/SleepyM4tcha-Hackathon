@@ -17,9 +17,12 @@ export async function GET(req: NextRequest) {
   const category = getCategoryBySlug(params.get("category") ?? "all");
   if (!category) return new Response("Unknown category", { status: 400 });
   const page = Number(params.get("page")) || 1;
+  // Refresh button: read this page from the source again instead of from anything held.
+  // The other sources hold nothing between requests, so it changes nothing for them.
+  const refresh = params.get("refresh") === "1";
 
   try {
-    const result = await getInboxPage(category.slug, page);
+    const result = await getInboxPage(category.slug, page, { refresh });
     return Response.json(
       {
         rows: result.emails.map(toInboxRow),

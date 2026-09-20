@@ -40,6 +40,7 @@ function storeFor(userKey: string) {
 
 const fresh = (held?: { at: number }) => !!held && Date.now() - held.at <= STORE_TTL_MS;
 
+
 async function fetchMessage(token: string, id: string): Promise<Email | null> {
   try {
     const msg = await gmailGet<GmailMessage>(token, `/messages/${encodeURIComponent(id)}`, {
@@ -86,9 +87,21 @@ export async function getInboxPage(
   token: string,
   userKey: string,
   requested: number,
-  retried = false,
+  opts: {
+    /**
+     * Read this page from Gmail again instead of using what's held (the Refresh button).
+     * Only the messages this page lists are re-read -- pages the person has already paged
+     * through stay held, so a refresh costs one page of calls, not the whole inbox.
+     */
+    refresh?: boolean;
+    retried?: boolean;
+  } = {},
 ): Promise<InboxPage> {
+  const { refresh = false, retried = false } = opts;
   let page = Math.max(1, Math.floor(requested) || 1);
+  // New mail shifts every page boundary along, so held page tokens (and the total) are no
+  // longer trustworthy once we go back to Gmail for the newest page.
+  if (refresh) cursors.delete(userKey);
   let cur = cursors.get(userKey);
   if (!cur || Date.now() - cur.at > CURSOR_TTL_MS) {
     cur = { at: Date.now(), tokens: [undefined] };
@@ -112,7 +125,7 @@ export async function getInboxPage(
     // A stale page token: forget the cursor and walk again from page 1, once
     if (e instanceof GmailError && e.status === 400 && !retried) {
       cursors.delete(userKey);
-      return getInboxPage(token, userKey, requested, true);
+      return getInboxPage(token, userKey, requested, { ...opts, retried: true });
     }
     throw e;
   }
@@ -127,7 +140,7 @@ export async function getInboxPage(
   }
 
   const store = storeFor(userKey);
-  const todo = ids.filter((id) => !fresh(store.get(id)));
+  const todo = refresh ? ids : ids.filter((id) => !fresh(store.get(id)));
   await mapPool(todo, CONCURRENCY, async (id) => {
     const email = await fetchMessage(token, id);
     if (email) store.set(id, { at: Date.now(), email });

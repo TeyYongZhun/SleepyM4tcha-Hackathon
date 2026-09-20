@@ -1,6 +1,7 @@
 import { adaptCategory } from "../api/adapters";
 import { buildDemoSummary, classifyDemoEmail } from "../demo/classify";
 import { parseEmailBody } from "../demo/parse";
+import { bodyText } from "../text";
 import type { Email, EmailSummary } from "../types";
 
 /**
@@ -29,22 +30,6 @@ function warnOnce(reason: unknown) {
     `[gmail] classifier at ${CLASSIFIER_API_URL} unreachable (${reason}); ` +
       `falling back to keyword rules for this inbox`,
   );
-}
-
-function htmlToText(html: string): string {
-  return html
-    .replace(/<(style|script|head)[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<br\s*\/?>|<\/(p|div|tr|li|h\d)>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/g, " ")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&amp;/g, "&")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n\s*\n+/g, "\n\n")
-    .trim();
 }
 
 type Classified = Pick<Email, "category" | "summary">;
@@ -100,7 +85,7 @@ function classifyLocally(email: Email, body: string): Classified {
 }
 
 export async function enrich(email: Email): Promise<Email> {
-  const body = email.body_type === "html" ? htmlToText(email.body) : email.body;
+  const body = bodyText(email.body, email.body_type);
   const classified = (await classifyRemotely(email, body)) ?? classifyLocally(email, body);
   return {
     ...email,

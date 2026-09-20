@@ -71,7 +71,14 @@ export function SummaryPanel({ email }: { email: Email }) {
             aria-valuemax={100}
             className="mb-[22px] h-1.5 overflow-hidden rounded-full bg-line"
           >
-            <div className={`h-full ${meta.bar}`} style={{ width: `${confidence}%` }} />
+            <div
+              className="h-full"
+              // Hue 0 (red) at 0% up to 120 (green) at 100%, passing through amber
+              style={{
+                width: `${confidence}%`,
+                backgroundColor: `hsl(${Math.round(confidence * 1.2)} 65% 42%)`,
+              }}
+            />
           </div>
         )}
 

@@ -20,6 +20,8 @@
 
   /* cards, headers and panels that sit on the paper */
   --color-surface: #ffffff;
+  /* Menus and dialogs that float over the page: never see-through, whatever `surface` is */
+  --color-overlay: #ffffff;
   /* always-dark bands (landing "How it works", sign-in side panel) */
   --color-navy: #12172b;
   --color-navy-2: #1e2540;
@@ -41,30 +43,39 @@
 }
 
 html[data-theme="dark"] {
-  --color-ink: #eceef4;
-  --color-ink-soft: #9ba2b6;
-  --color-paper: #0e1220;
-  --color-paper-2: #1a2036;
-  --color-line: #2b3250;
+  /* Neutral greys, no blue cast. A deep near-black page: the panels sit only just above it,
+     so it is the bright borders, not a lighter fill, that separate them. */
+  --color-ink: #f0f0f0;
+  --color-ink-soft: #a8a8a8;
+  --color-paper: #0a0a0a;
   --color-copper: #d9773f;
 
-  --color-surface: #151a2b;
-  --color-navy: #171d36;
-  --color-navy-2: #222a4b;
-  --color-btn: #eceef4;
+  /* Panels are a film of white over the page rather than their own solid colour, so the glow
+     behind them shows through and they read as glass. Kept thin, so the page stays close to
+     black: over #0a0a0a these land at about #131313 / #191919, with borders near #5a5a5a. */
+  --color-surface: rgb(255 255 255 / 0.035);
+  /* What `surface` composites to over the page, but solid: content must not show through a menu */
+  --color-overlay: #131313;
+  --color-paper-2: rgb(255 255 255 / 0.06);
+  --color-line: rgb(255 255 255 / 0.3);
+  /* The always-dark bands ("How it works", the sign-in panel) keep their navy in both themes:
+     it is the one deliberate colour in the layout, not part of the neutral page. */
+  --color-navy: #12172b;
+  --color-navy-2: #1e2540;
+  --color-btn: #f0f0f0;
   --color-btn-hover: #ffffff;
-  --color-on-btn: #12172b;
+  --color-on-btn: #0d0d0d;
 
   --color-good: #4cc38a;
-  --color-good-bg: #13301f;
+  --color-good-bg: #122a1c;
   --color-bad: #f0857a;
-  --color-bad-bg: #3a1b1b;
+  --color-bad-bg: #331919;
   --color-warn: #e2a64f;
-  --color-warn-bg: #33270f;
-  --color-mute: #a3aab8;
-  --color-mute-bg: #232a3b;
+  --color-warn-bg: #2e2211;
+  --color-mute: #a8a8a8;
+  --color-mute-bg: #1e1e1e;
   --color-info: #6fa8dc;
-  --color-info-bg: #14243a;
+  --color-info-bg: #152335;
 }
 
 html {
@@ -78,6 +89,35 @@ html[data-theme="dark"] {
   color-scheme: dark;
 }
 
+/* Landing page only: it marks its wrapper .snap-page, so the dashboard's scrolling is
+   untouched. Proximity = a gentle pull toward a section start once you stop near one,
+   never a forced jump, and free scrolling everywhere else. */
+html:has(.snap-page) {
+  scroll-snap-type: y proximity;
+}
+
+/* Tailwind's preflight leaves buttons on the default arrow. In the base layer, so a
+   component's own cursor-* utility (e.g. the resize handle) still wins. */
+@layer base {
+  a[href],
+  button:not(:disabled),
+  summary,
+  select:not(:disabled),
+  label[for],
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="menuitem"],
+  input:is([type="checkbox"], [type="radio"], [type="submit"], [type="button"], [type="file"]):not(
+      :disabled
+    ) {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+}
+
 body {
   background: var(--color-paper);
   color: var(--color-ink);
@@ -85,10 +125,99 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* Dark theme only: the deep black is lit by two soft pools of light rather than being one flat
+   fill, which is what the glass panels above it catch. Every element that paints the page
+   colour gets the same gradient, pinned to the viewport, so they line up seamlessly however
+   the page is scrolled or split. Must come after `body` above, whose `background` shorthand
+   would otherwise clear the image. */
+html[data-theme="dark"] :is(body, .bg-paper) {
+  background-image:
+    radial-gradient(70rem 42rem at 50% -22%, rgb(255 255 255 / 0.022), transparent 60%),
+    radial-gradient(52rem 36rem at 5% 105%, rgb(217 119 63 / 0.025), transparent 58%);
+  background-attachment: fixed;
+}
+
+/* Landing page, dark theme: the coloured bands rise out of the page and sink back into it
+   instead of starting and stopping at a hard line, so black -> navy -> black -> copper reads
+   as one surface. The blend lives inside the coloured bands because everything written on
+   them is white, which stays legible the whole way across the ramp. Light mode keeps its hard
+   edges on purpose: there the bands are dark blocks on cream, and their text would disappear
+   the moment the ramp reached the page colour. */
+html[data-theme="dark"] .band-navy {
+  background-image: linear-gradient(
+    180deg,
+    var(--color-paper) 0%,
+    var(--color-navy) 9%,
+    var(--color-navy) 93%,
+    var(--color-paper) 100%
+  );
+}
+html[data-theme="dark"] .band-cta {
+  background-image: linear-gradient(
+    180deg,
+    var(--color-paper) 0%,
+    var(--color-copper) 15%,
+    var(--color-copper) 85%,
+    var(--color-paper) 100%
+  );
+}
+
+/* The sheen across the top of a pane of glass. Panels only -- `paper-2` is also avatars and
+   hover fills, where a gradient would just look like a smudge. */
+html[data-theme="dark"] :is(.bg-surface, .bg-overlay) {
+  background-image: linear-gradient(180deg, rgb(255 255 255 / 0.035), rgb(255 255 255 / 0) 60%);
+}
+
 h1,
 h2,
 h3 {
   font-family: var(--font-display);
+}
+
+/* Buttons that lift toward you on hover (springy overshoot) and press in when clicked.
+   The shadow is tinted with the button colour, so it is a glow in dark mode. */
+@utility btn-lift {
+  transition:
+    transform 220ms cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 220ms ease,
+    background-color 150ms ease;
+  &:hover:not(:disabled) {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 20px -8px color-mix(in srgb, var(--color-btn) 60%, transparent);
+  }
+  &:active:not(:disabled) {
+    transform: translateY(1px) scale(0.96);
+    box-shadow: inset 0 3px 6px rgb(0 0 0 / 0.35);
+    transition-duration: 60ms;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: background-color 150ms ease;
+    &:hover:not(:disabled),
+    &:active:not(:disabled) {
+      transform: none;
+    }
+  }
+}
+
+/* Cards that answer the pointer: they rise a little and their edge takes on the accent.
+   Gentler and slower than btn-lift -- a card is something you read, not something you press,
+   so it should acknowledge the pointer without inviting a click. */
+@utility card-lift {
+  transition:
+    transform 260ms cubic-bezier(0.34, 1.28, 0.64, 1),
+    border-color 200ms ease,
+    box-shadow 260ms ease;
+  &:hover {
+    transform: translateY(-4px);
+    border-color: var(--color-copper);
+    box-shadow: 0 18px 36px -20px rgb(0 0 0 / 0.55);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    transition: border-color 200ms ease;
+    &:hover {
+      transform: none;
+    }
+  }
 }
 
 /* Scrollable, but with the scrollbar hidden */

@@ -33,7 +33,7 @@ export function SignInButton({
     >
       <button
         type="submit"
-        className={`inline-flex items-center justify-center gap-2.5 rounded-lg border border-[#dadce0] bg-white font-semibold text-[#3c4043] shadow-[0_1px_2px_rgba(0,0,0,0.08)] transition hover:bg-neutral-50 ${SIZE[size]} ${
+        className={`inline-flex items-center justify-center gap-2.5 rounded-lg border border-[#dadce0] bg-white font-semibold text-[#3c4043] shadow-[0_1px_2px_rgba(0,0,0,0.08)] btn-lift hover:bg-neutral-50 ${SIZE[size]} ${
           fullWidth ? "w-full" : ""
         }`}
       >
@@ -63,7 +63,7 @@ export function DemoSignInButton({
     >
       <button
         type="submit"
-        className={`inline-flex items-center justify-center rounded-lg bg-btn font-semibold text-on-btn transition hover:bg-btn-hover ${SIZE[size]} ${
+        className={`inline-flex items-center justify-center rounded-lg bg-btn font-semibold text-on-btn btn-lift hover:bg-btn-hover ${SIZE[size]} ${
           fullWidth ? "w-full" : ""
         }`}
       >

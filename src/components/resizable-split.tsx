@@ -42,9 +42,12 @@ function subscribe(onChange: () => void) {
  */
 export function ResizableSplit({
   left,
+  leftFooter,
   right,
 }: {
   left: React.ReactNode;
+  /** Pinned under the email pane; only the email above it scrolls. */
+  leftFooter?: React.ReactNode;
   right: React.ReactNode;
 }) {
   const width = useSyncExternalStore(subscribe, readWidth, () => DEFAULT_WIDTH);
@@ -92,7 +95,11 @@ export function ResizableSplit({
         dragging ? "select-none" : ""
       }`}
     >
-      <div className="min-w-0 lg:min-w-[22.5rem] lg:flex-1 lg:overflow-y-auto">{left}</div>
+      <div className="flex min-w-0 flex-col lg:min-h-0 lg:min-w-[22.5rem] lg:flex-1">
+        <div className="no-scrollbar flex-1 lg:min-h-0 lg:overflow-y-auto">{left}</div>
+        {/* Below lg everything scrolls as one page, so the footer sticks to the screen bottom */}
+        {leftFooter && <div className="sticky bottom-0 z-10 lg:static lg:shrink-0">{leftFooter}</div>}
+      </div>
 
       <div
         role="separator"
