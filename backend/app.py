@@ -24,7 +24,7 @@ from functools import lru_cache
 from pathlib import Path
 
 import joblib
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 
@@ -39,13 +39,14 @@ sys.path.insert(0, str(ROOT / "sdoc_comparator" / "src"))   # main, extractor, c
 sys.path.insert(0, str(ROOT / "sdoc_classifier"))           # src.pipeline, src.features, ...
 sys.path.insert(0, str(ROOT))                               # sdoc_classifier.src.*
 
+from sdoc_classifier.src.config import LOW_CONFIDENCE_THRESHOLD  # noqa: E402
 from sdoc_classifier.src.features import featurize          # noqa: E402
-from sdoc_classifier.src.loading import inbox_paths, load_email  # noqa: E402
+from sdoc_classifier.src.loading import inbox_paths, load_email, parse_record  # noqa: E402
 from sdoc_classifier.src.predict import classify            # noqa: E402
 
 import main as comparator                                   # noqa: E402  (sdoc_comparator/src/main.py)
 
-from .assemble import email_json, kind_of                   # noqa: E402
+from .assemble import email_json, kind_of, summary          # noqa: E402
 
 log = logging.getLogger("gateway")
 
@@ -161,3 +162,42 @@ def attachment_file(name: str):
     if not path.exists():
         raise HTTPException(status_code=404, detail="No such attachment")
     return FileResponse(path)
+
+
+@app.post("/classify")
+def classify_one(message: dict = Body(...)):
+    """Classify a single message that did not come from the demo inbox.
+
+    This is what `src/lib/gmail/enrich.ts` calls for each Gmail message, so the
+    user's own mail runs through the same model as the seeded inbox. It reuses
+    the exact chain GET /emails uses -- parse_record -> featurize -> classify --
+    rather than a second copy of the logic.
+
+    Body: {email_id?, from|sender, subject, body, attachments?}
+    Returns: {category, confidence, model_category, low_confidence, summary}
+
+    The model is trained on 520 templated logistics emails, so on a real inbox
+    it is often out of its depth. Below LOW_CONFIDENCE_THRESHOLD we report
+    GENERAL rather than a confident wrong answer, but keep what the model
+    actually said in `model_category` so nothing is hidden.
+    """
+    try:
+        record = parse_record({**message, "email_id": message.get("email_id") or "inbound"})
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Unreadable message: {exc}") from exc
+
+    try:
+        prediction = classify(_model(), [featurize(record)])[0]
+    except Exception:
+        log.exception("classification failed for %s", record.email_id)
+        raise HTTPException(status_code=500, detail="Classification failed")
+
+    low = prediction.source == "model" and prediction.confidence < LOW_CONFIDENCE_THRESHOLD
+    category = "GENERAL" if low else prediction.category
+    return {
+        "category": category,
+        "confidence": round(float(prediction.confidence), 4),
+        "model_category": prediction.category,
+        "low_confidence": low,
+        "summary": summary(category, prediction.confidence, len(record.attachments), record.body),
+    }

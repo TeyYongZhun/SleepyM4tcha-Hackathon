@@ -119,7 +119,7 @@ function adaptComparison(v: unknown, emailId: string): ShipmentFieldComparison[]
   return rows.length ? rows : undefined;
 }
 
-function adaptCategory(v: unknown, emailId: string): EmailCategory {
+export function adaptCategory(v: unknown, emailId: string): EmailCategory {
   const key = typeof v === "string" ? v.trim().toLowerCase().replace(/[\s-]+/g, "_") : "";
   const hit = CATEGORY_ALIASES[key];
   if (!hit) console.warn(`[api] email ${emailId}: unknown category ${JSON.stringify(v)}, showing as "general"`);
