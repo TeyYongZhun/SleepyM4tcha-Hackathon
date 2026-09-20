@@ -1,16 +1,8 @@
-import {
-  AlertTriangle,
-  Bell,
-  CheckCircle2,
-  FileText,
-  Receipt,
-  ShieldAlert,
-  UserCheck,
-  type LucideIcon,
-} from "lucide-react";
+import { Bell, FileText, Receipt, ShieldAlert, type LucideIcon } from "lucide-react";
 import { getCategoryByEmailCategory } from "@/lib/categories";
-import type { ComparisonStatus, Email, EmailCategory } from "@/lib/types";
+import type { Email, EmailCategory } from "@/lib/types";
 import { REVIEW_REASON_TEXT } from "@/lib/shipment";
+import { ResolveButton, StatusBox } from "./resolve-status";
 import { ShipmentChecklist } from "./shipment-checklist";
 
 const CATEGORY_ICON: Record<EmailCategory, LucideIcon> = {
@@ -19,13 +11,6 @@ const CATEGORY_ICON: Record<EmailCategory, LucideIcon> = {
   invoice_query: Receipt,
   general: Bell,
   spam: ShieldAlert,
-};
-
-/** SI-vs-BL verdict. A separate axis from the category, so it gets its own badge. */
-const STATUS_META: Record<ComparisonStatus, { label: string; badge: string; icon: LucideIcon }> = {
-  OK: { label: "SI and BL match", badge: "bg-good-bg text-good", icon: CheckCircle2 },
-  MISMATCH: { label: "Mismatch found", badge: "bg-bad-bg text-bad", icon: AlertTriangle },
-  NEEDS_REVIEW: { label: "Needs human review", badge: "bg-warn-bg text-warn", icon: UserCheck },
 };
 
 const LABEL = "text-[10.5px] font-semibold tracking-wide text-ink-soft uppercase";
@@ -38,7 +23,6 @@ export function SummaryPanel({ email }: { email: Email }) {
   const s = email.summary;
   const meta = getCategoryByEmailCategory(email.category);
   const Icon = CATEGORY_ICON[email.category];
-  const status = email.status ? STATUS_META[email.status] : undefined;
   const confidence = s?.confidence !== undefined ? Math.round(s.confidence * 100) : undefined;
 
   return (
@@ -62,25 +46,20 @@ export function SummaryPanel({ email }: { email: Email }) {
               <p className="text-[11.5px] text-ink-soft">{confidence}% confidence</p>
             )}
           </div>
+          <ResolveButton emailId={email.email_id} status={email.status} />
         </div>
 
-        {status && (
-          <div className={`mb-4 flex items-start gap-2 rounded-lg px-3 py-2.5 ${status.badge}`}>
-            <status.icon size={15} className="mt-px shrink-0" aria-hidden />
-            <div className="min-w-0">
-              <p className="text-[12.5px] font-semibold">{status.label}</p>
-              {email.review_reason && (
-                <p className="mt-0.5 text-[11.5px] opacity-90">
-                  {REVIEW_REASON_TEXT[email.review_reason]}
-                </p>
-              )}
-              {!!email.defect_fields?.length && (
-                <p className="mt-0.5 text-[11.5px] opacity-90">
-                  Differs on: {email.defect_fields.join(", ").replace(/_/g, " ")}
-                </p>
-              )}
-            </div>
-          </div>
+        {email.status && (
+          <StatusBox
+            emailId={email.email_id}
+            status={email.status}
+            reasonText={email.review_reason ? REVIEW_REASON_TEXT[email.review_reason] : undefined}
+            defectText={
+              email.defect_fields?.length
+                ? `Differs on: ${email.defect_fields.join(", ").replace(/_/g, " ")}`
+                : undefined
+            }
+          />
         )}
 
         {confidence !== undefined && (

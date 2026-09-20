@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { getCategoryBySlug, type CategorySlug } from "@/lib/categories";
 import { PAGE_SIZE } from "@/lib/paging";
+import { useResolvedIds } from "@/lib/resolved";
 import { REVIEW_REASON_SHORT } from "@/lib/shipment";
 import type { EmailCategory, ReviewReason } from "@/lib/types";
 import { CategoryBadge } from "./category-badge";
@@ -49,7 +50,8 @@ export interface InboxRow {
    * Set once a person has cleared a mismatch or a needs-review case by hand.
    * Takes over from whichever of the above got it there -- a resolved row
    * shows under Resolved instead of Mismatch/Needs review from then on.
-   * Nothing sets this yet: it's here for the Resolve button, still to come.
+   * The server never sets it: the pane fills it in from the browser's resolved
+   * list (lib/resolved.ts), which the Resolve button in the summary panel writes.
    */
   resolved?: boolean;
 }
@@ -132,9 +134,12 @@ export function InboxPane({
     }
   }
 
+  const resolvedIds = useResolvedIds();
+  const rows = view.rows.map((r) => (resolvedIds.has(r.id) ? { ...r, resolved: true } : r));
+
   const category = getCategoryBySlug(slug)?.category;
   const filterHere = !view.filtered && !!category;
-  const inCategory = filterHere ? view.rows.filter((r) => r.category === category) : view.rows;
+  const inCategory = filterHere ? rows.filter((r) => r.category === category) : rows;
 
   // Only BL Comparison carries a verdict worth filtering on -- the other tabs
   // never set mismatchedFields/reviewReason, so a status filter there would do nothing.
@@ -165,7 +170,7 @@ export function InboxPane({
       if (view.page !== 1) goTo(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, status, loading]);
+  }, [view, status, loading, resolvedIds]);
 
   const first = (view.page - 1) * PAGE_SIZE + 1;
   const range = `${first}-${first + view.rows.length - 1}`;
