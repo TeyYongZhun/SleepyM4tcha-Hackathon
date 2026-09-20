@@ -41,7 +41,7 @@ async function toAttachment(rel: string): Promise<Attachment> {
 
 async function adapt(raw: DummyEmail): Promise<Email> {
   const attachments = await Promise.all(raw.attachments.map(toAttachment));
-  const { category, reason } = classifyDemoEmail(raw);
+  const { category, reason, confidence } = classifyDemoEmail(raw);
   const email: Email = {
     email_id: raw.email_id,
     from: { email: raw.from },
@@ -53,7 +53,7 @@ async function adapt(raw: DummyEmail): Promise<Email> {
     category,
     // Demo only: real data arrives with these already extracted
     shipment_info: parseEmailBody(raw.subject, raw.body),
-    summary: buildDemoSummary(raw, category, reason, attachments.length),
+    summary: buildDemoSummary(raw, category, reason, attachments.length, confidence),
   };
 
   // The list needs to know which emails want a person, and why, so it reads the

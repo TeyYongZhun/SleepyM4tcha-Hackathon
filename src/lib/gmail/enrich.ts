@@ -82,7 +82,7 @@ async function classifyRemotely(email: Email, body: string): Promise<Classified 
 
 /** Keyword rules: used when no classifier is configured, or it did not answer. */
 function classifyLocally(email: Email, body: string): Classified {
-  const { category, reason } = classifyDemoEmail({
+  const { category, reason, confidence } = classifyDemoEmail({
     from: email.from.email,
     subject: email.subject,
     body,
@@ -94,6 +94,7 @@ function classifyLocally(email: Email, body: string): Classified {
       category,
       reason,
       email.attachments.length,
+      confidence,
     ),
   };
 }

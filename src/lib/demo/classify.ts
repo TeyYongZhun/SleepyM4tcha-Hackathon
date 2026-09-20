@@ -43,27 +43,52 @@ const REASONS: Record<EmailCategory, string> = {
   general: "Automated notice or general chatter; no SI, B/L or invoice action found.",
 };
 
+/**
+ * Stand-in for the real models probability: how specific the rule that fired
+ * was. An exact subject-line pattern is as good as this demo classifier gets;
+ * falling through to a body keyword or the default general means less sure.
+ */
 export function classifyDemoEmail(e: {
   from: string;
   subject: string;
   body: string;
-}): { category: EmailCategory; reason: string } {
-  // '' never fires next to '_', and these subjects use '_' as the separator
-  // ("SI NEEDED_ 5APH-26773"), so normalise before matching.
+}): { category: EmailCategory; reason: string; confidence: number } {
+  // never fires next to _, and these subjects use _ as the separator
+  // (SI NEEDED_ 5APH-26773), so normalise before matching.
   const subject = e.subject.replace(/_/g, " ");
   const text = `${subject}
 ${e.body}`;
   let category: EmailCategory;
-  if (SPAM_SENDER.test(e.from) || SPAM_TEXT.test(text)) category = "spam";
-  else if (NOTICE.test(subject)) category = "general";
-  else if (CODED_SI.test(subject) || SUBJ_SI.test(subject)) category = "si_request";
-  else if (SUBJ_BL.test(subject)) category = "bl_comparison";
-  else if (CODED_DEPT.test(subject)) category = "bl_comparison";
-  else if (BODY_SI.test(text)) category = "si_request";
-  else if (BODY_BL.test(text)) category = "bl_comparison";
-  else if (INVOICE.test(text)) category = "invoice_query";
-  else category = "general";
-  return { category, reason: REASONS[category] };
+  let confidence: number;
+  if (SPAM_SENDER.test(e.from) || SPAM_TEXT.test(text)) {
+    category = "spam";
+    confidence = 0.97;
+  } else if (NOTICE.test(subject)) {
+    category = "general";
+    confidence = 0.93;
+  } else if (CODED_SI.test(subject) || SUBJ_SI.test(subject)) {
+    category = "si_request";
+    confidence = 0.97;
+  } else if (SUBJ_BL.test(subject)) {
+    category = "bl_comparison";
+    confidence = 0.97;
+  } else if (CODED_DEPT.test(subject)) {
+    category = "bl_comparison";
+    confidence = 0.95;
+  } else if (BODY_SI.test(text)) {
+    category = "si_request";
+    confidence = 0.88;
+  } else if (BODY_BL.test(text)) {
+    category = "bl_comparison";
+    confidence = 0.88;
+  } else if (INVOICE.test(text)) {
+    category = "invoice_query";
+    confidence = 0.85;
+  } else {
+    category = "general";
+    confidence = 0.7;
+  }
+  return { category, reason: REASONS[category], confidence };
 }
 
 const HEADLINE: Record<EmailCategory, string> = {
@@ -80,6 +105,7 @@ export function buildDemoSummary(
   category: EmailCategory,
   reason: string,
   attachmentCount: number,
+  confidence: number,
 ): EmailSummary {
   const text = `${e.subject}\n${e.body}`;
   const fields: { label: string; value: string }[] = [];
@@ -105,6 +131,7 @@ export function buildDemoSummary(
   return {
     headline: HEADLINE[category],
     summary: body.slice(0, 280) || e.subject,
+    confidence,
     reason,
     fields,
   };
