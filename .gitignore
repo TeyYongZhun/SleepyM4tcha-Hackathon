@@ -40,3 +40,12 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# ---- Python ML projects (sdoc_classifier / sdoc_comparator) ----
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+sdoc_classifier/out/
+sdoc_comparator/output/
