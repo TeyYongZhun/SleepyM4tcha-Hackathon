@@ -9,6 +9,7 @@ import {
   ArrowRight,
   CheckCheck,
   CheckCircle2,
+  FileText,
   Paperclip,
   UserCheck,
 } from "lucide-react";
@@ -276,6 +277,12 @@ export function InboxPane({
                         {row.reviewReason !== "unknown" && <> · {REVIEW_REASON_SHORT[row.reviewReason]}</>}
                       </span>
                     )}
+                    {isDraftBl(row) && (
+                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-info-bg px-2 py-0.5 text-[10px] font-semibold text-info">
+                        <FileText size={11} aria-hidden />
+                        Draft BL
+                      </span>
+                    )}
                   </>
                 )}
                 {row.attachmentCount > 0 && (
@@ -349,6 +356,21 @@ const STATUS_FILTERS: { value: StatusFilter; label: string; tone: string }[] = [
   { value: "resolved", label: "Resolved", tone: "border-transparent bg-mute-bg text-mute" },
 ];
 
+/**
+ * A BL Comparison email with no verdict at all: nothing to check the request against
+ * yet, so it is still just a request for a draft BL. Same test for the row label and
+ * the Draft BL filter, so what is labelled is exactly what the filter finds.
+ */
+function isDraftBl(row: InboxRow): boolean {
+  return (
+    row.category === "bl_comparison" &&
+    !row.mismatchedFields &&
+    !row.reviewReason &&
+    !row.matched &&
+    !row.resolved
+  );
+}
+
 function matchesStatus(row: InboxRow, status: StatusFilter): boolean {
   switch (status) {
     case "resolved":
@@ -363,7 +385,7 @@ function matchesStatus(row: InboxRow, status: StatusFilter): boolean {
       return !!row.matched && !row.resolved;
     // No verdict yet: nothing to check the request against, so it's still just a draft ask.
     case "draft":
-      return !row.mismatchedFields && !row.reviewReason && !row.matched && !row.resolved;
+      return isDraftBl(row);
     default:
       return true;
   }
