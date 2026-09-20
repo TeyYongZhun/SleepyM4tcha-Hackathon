@@ -119,12 +119,11 @@ cd sdoc_comparator && ../.venv/Scripts/python.exe src/main.py     # run the comp
 
 ### Where they go
 
-| Where you run it | Put the variables in                                                                                                     |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------ |
-| Your machine     | **`.env.local`** in the project root (next to `package.json`). It is git-ignored. Start from `.env.example`. |
-| Vercel           | **Project > Settings > Environment Variables** (or `vercel env add NAME`). `.env.local` is not uploaded.       |
+Put them in **`.env.local`** in the project root, next to `package.json`. It is
+git-ignored; start from `.env.example`.
 
-One `NAME=value` per line, no quotes and no spaces around `=`. Variables are read when the server starts, so **restart `npm run dev`** (or redeploy on Vercel) after changing them.
+One `NAME=value` per line, no quotes and no spaces around `=`. They are read at
+startup, so **restart `npm run dev`** after changing them.
 
 ```shell
 # .env.local
@@ -143,11 +142,12 @@ ENABLE_DEMO=false
 | `AUTH_SECRET`        | Yes              | -        | Random string that signs login sessions. Generate with`npx auth secret`. Use a different one per environment.                                                                                              |
 | `AUTH_GOOGLE_ID`     | For Google login | -        | OAuth client ID from Google Cloud (see "Setting up Google sign-in").                                                                                                                                         |
 | `AUTH_GOOGLE_SECRET` | For Google login | -        | OAuth client secret from the same place. Keep it private.                                                                                                                                                    |
-| `BACKEND_API_URL`    | No               | empty    | The gateway's origin, e.g.`http://localhost:8000`. **Empty = the app reads the signed-in user's Gmail itself.** Set = every email comes from the gateway's seeded inbox instead (see "Connecting the backend"). |
+| `BACKEND_API_URL`    | No               | empty    | The gateway's origin, e.g.`http://localhost:8000`. **Empty = the app reads the signed-in user's Gmail itself.** Set = every email comes from the gateway's seeded inbox instead. |
 | `CLASSIFIER_API_URL` | No               | empty    | Where`POST /classify` and `POST /compare` live, normally `http://localhost:8000`. Used **only on the Gmail path**, to classify real messages and compare their SI/BL attachments. Unset or unreachable falls back to keyword rules rather than failing. |
 | `ENABLE_DEMO`        | No               | `true` | The "Try the demo" login and its sample inbox. Set to exactly`false` to turn it off (the button disappears and the demo login is rejected). Any other value leaves it on.                                  |
 
-On Vercel, `NEXTAUTH_URL` / `AUTH_URL` is not needed; Auth.js detects the domain there. Locally, open the app at `http://localhost:3000` (not `127.0.0.1`).
+Open the app at `http://localhost:3000`, not `127.0.0.1` — Google matches the
+redirect URI exactly.
 
 There is also `GMAIL_API_URL`, which points the Gmail source at a fake server for automated tests. Leave it unset.
 
@@ -158,44 +158,18 @@ There is also `GMAIL_API_URL`, which points the Gmail source at a fake server fo
    While the app is in *Testing* status, add every Google account that will sign in under **Test users**, otherwise Google shows "access blocked".
 3. **Credentials > Create credentials > OAuth client ID > Web application.** Add these authorised redirect URIs:
    - `http://localhost:3000/api/auth/callback/google`
-   - `https://<your-vercel-domain>/api/auth/callback/google`
 4. Copy the client ID and secret into `.env.local`.
 5. Google shows a "hasn't verified this app" warning in Testing mode. Click Advanced, then Continue.
-
-## Demo credentials
-
-These are the credentials currently used for the hackathon demo. They are here for convenience: paste them into `.env.local` and Google sign-in works locally at `http://localhost:3000`.
-
-```shell
-# Generate with: npx auth secret   (or: openssl rand -base64 33)
-AUTH_SECRET=
-
-# Google Cloud Console > APIs & Services > Credentials > OAuth client (Web)
-# Authorised redirect URIs:
-#   http://localhost:3000/api/auth/callback/google
-#   https://<your-vercel-domain>/api/auth/callback/google
-AUTH_GOOGLE_ID=
-AUTH_GOOGLE_SECRET=
-
-# Empty = read the signed-in user's real Gmail.
-# Set to http://localhost:8000 = serve the seeded 520-email dataset instead.
-BACKEND_API_URL=
-
-# The FastAPI gateway, used on the Gmail path for POST /classify and /compare.
-CLASSIFIER_API_URL=http://localhost:8000
-
-# "Try the demo" button: logs in as a fake user and browses public/dummy.
-# Set to false to disable (e.g. on a production deployment).
-ENABLE_DEMO=true
-```
-
-> **Demo only.** This file is tracked by git. If this repository is ever pushed somewhere public, rotate the Google client secret and generate a new `AUTH_SECRET` first, then delete this section.
 
 ## The demo account
 
 **Try the demo** logs in as a fake "Demo User" and browses the emails in `public/dummy/inbox` (attachments in `public/dummy/attachments`).
 
-The dummy data carries no labels, so `src/lib/demo/classify.ts` assigns categories and summaries with keyword rules, and `src/lib/demo/parse.ts` + `extract.ts` read the SI/BL fields out of the email text and the `.txt` / `.pdf` / `.docx` / `.xlsx` attachments. This is **demo only**: with real data the backend sends all of this already extracted. Two of the sample PDFs are deliberately corrupt and a few are scanned images, to show the "couldn't be read" state.
+The dummy data carries no labels, so `src/lib/demo/classify.ts` assigns categories with keyword rules. Those rules are tuned against `sdoc_classifier/data/ground_truth.json` and currently agree with it on all 520 — but they are fitted to the organiser's templates, so read that as "the no-backend demo looks right", not as a second classifier.
+
+`src/lib/demo/parse.ts` and `extract.ts` read SI/BL fields out of the email text and the `.txt` / `.pdf` / `.docx` / `.xlsx` attachments. Despite living under `demo/`, the readers in `extract.ts` are shared — `src/lib/gmail/attachments.ts` uses the same ones for real Gmail attachments.
+
+Two of the sample PDFs are deliberately corrupt and a few are scanned images, to show the "couldn't be read" state.
 
 ## Where the emails come from
 
@@ -212,20 +186,25 @@ The dummy data carries no labels, so `src/lib/demo/classify.ts` assigns categori
 
 Gmail has no categories, summaries or SI/BL fields, so `src/lib/gmail/enrich.ts` fills them in by calling the real classifier at `CLASSIFIER_API_URL` (`POST /classify`), and `src/lib/gmail/attachments.ts` reads the attachments and asks for the SI-vs-BL comparison (`POST /compare`). If that service is unset or down it falls back to the demo's keyword rules, so the inbox still renders.
 
-Limits to know about: with Gmail the category tabs (BL Comparison, Spam, ...) filter the 50 messages of the page you are viewing and show no counts, because classifying the whole inbox would mean downloading all of it. Vercel also caps a function response at about 4.5 MB, so attachments bigger than that won't come through the route.
+Limits to know about: with Gmail the category tabs (BL Comparison, Spam, ...) filter the 50 messages of the page you are viewing and show no counts, because classifying the whole inbox would mean downloading all of it.
 
-## Connecting the backend
+## The gateway API
 
-The frontend does no classification or parsing of its own; it renders what the backend sends.
+`backend/app.py` serves these to the website. The full types are in
+`src/lib/types.ts`, and `src/lib/api/adapters.ts` validates every response.
 
-1. Set `BACKEND_API_URL` (for example `https://api.example.com`). Unset means mock data.
-2. Open **`src/lib/api/routes.ts`**, the routing file. It declares the endpoints the UI needs (`GET /emails` and `GET /emails/:id`). Change the paths if yours differ.
-3. Open **`src/lib/api/adapters.ts`** and point the field reads at your real response shape. Everything downstream (list, email, summary, shipment table) stays as it is.
-4. To add another endpoint, add an entry to `routes`, then call `request(routes.yourRoute, ...args)` from server code.
+| Route                  | What it returns                                                              |
+| ---------------------- | ---------------------------------------------------------------------------- |
+| `GET /health`        | `{status, emails}` — a quick check that the service is up                    |
+| `GET /emails`        | The seeded inbox, classified. Category and summary only, no attachment parsing |
+| `GET /emails/{id}`   | One email, plus its SI-vs-BL comparison                                      |
+| `POST /classify`     | One message → `{category, confidence, model_category, low_confidence, summary}` |
+| `POST /compare`      | An SI and a BL file → `{status, review_reason, defect_fields, shipment_comparison}` |
 
-Requests run on the server and send `Authorization: Bearer <the user's Google access token>`.
+Requests from the website run server-side and send
+`Authorization: Bearer <the user's Google access token>`.
 
-### What the backend should send per email
+### Per-email fields
 
 | Field                                                                  | Meaning                                                                                        |
 | ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
@@ -270,20 +249,13 @@ Inside the website:
 | `src/lib/shipment.ts`                     | The 14 mandatory SI fields and the SI / BL / structure checks (display only)           |
 | `src/lib/categories.ts`                   | The filter tabs and their colours                                                      |
 | `src/lib/user.ts`                         | `getUserInfo()` on the server; `useUserInfo()` in client components                |
-| `src/lib/demo/`                           | **Demo only**: dummy-inbox loader, keyword classifier, SI/BL text extraction     |
+| `src/lib/demo/`                           | Dummy-inbox loader and keyword classifier (demo), plus the document readers in `extract.ts`, which Gmail shares |
 | `src/components/summary-panel.tsx`        | Right pane: shipment checks, then classification, key details, TL;DR, actions          |
 | `src/components/shipment-checklist.tsx`   | The SI / BL / structure checks and the field table                                     |
 | `src/components/inbox-pane.tsx`           | Left pane list                                                                         |
 | `src/components/resizable-split.tsx`      | Draggable divider between the email and summary                                        |
 | `src/components/theme-toggle.tsx`         | Light/dark switch (applied before first paint by a script in`layout.tsx`)            |
 | `public/dummy/`, `public/mock/`         | Sample emails and attachments                                                          |
-
-## Deploying to Vercel
-
-1. Import the repository in Vercel (framework preset: Next.js).
-2. Add the environment variables from `.env.local` in the project settings.
-3. Add `https://<your-domain>/api/auth/callback/google` as an authorised redirect URI in Google Cloud.
-4. Consider setting `ENABLE_DEMO=false` for a production deployment.
 
 ## Troubleshooting
 
