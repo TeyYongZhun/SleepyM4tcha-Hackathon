@@ -1,4 +1,10 @@
-import type { Email, ShipmentDocument, ShipmentFieldKey, ShipmentFields } from "./types";
+import type {
+  Email,
+  ReviewReason,
+  ShipmentDocument,
+  ShipmentFieldKey,
+  ShipmentFields,
+} from "./types";
 
 /**
  * The fields every Shipping Instruction must carry, in display order.
@@ -28,6 +34,19 @@ export const SHIPMENT_FIELDS: {
   { key: "freight", label: "Freight", siRequired: true, blRequired: true },
   { key: "bl_number", label: "B/L No.", siRequired: false, blRequired: true },
 ];
+
+/** Plain-English reason a pair needs a person. Shared by the checklist and the summary panel. */
+export const REVIEW_REASON_TEXT: Record<ReviewReason, string> = {
+  missing_attachment: "only one of the SI / BL was received",
+  unreadable: "a document could not be read (empty, corrupt, or a scan with no text)",
+  wrong_doc_type: "an attachment is not an SI or BL",
+  missing_value: "a compared field is blank on one side",
+};
+
+/** Display label for a field key, falling back to the key itself. */
+export function labelFor(key: ShipmentFieldKey): string {
+  return SHIPMENT_FIELDS.find((f) => f.key === key)?.label ?? key;
+}
 
 export type DocPresence = "present" | "absent" | "unreadable";
 

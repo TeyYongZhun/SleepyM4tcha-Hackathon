@@ -7,6 +7,7 @@ import type {
   EmailSummary,
   ReviewReason,
   ShipmentDocument,
+  ShipmentFieldComparison,
   ShipmentFields,
 } from "../types";
 
@@ -89,6 +90,35 @@ const REVIEW_REASONS: readonly ReviewReason[] = [
   "missing_value",
 ];
 
+const ROW_STATUSES = ["match", "mismatch", "unsure"] as const;
+
+/**
+ * Validated rather than cast: a malformed row would otherwise reach React and
+ * crash the render instead of surfacing as a bad response. Unusable rows are
+ * dropped, so a partly-broken comparison still shows the rows that are fine.
+ */
+function adaptComparison(v: unknown, emailId: string): ShipmentFieldComparison[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const rows = v.flatMap((raw) => {
+    if (!isObj(raw)) return [];
+    const field = str(raw.field);
+    const status = ROW_STATUSES.find((s) => s === raw.status);
+    if (!field || !status) {
+      console.warn(`[api] email ${emailId}: dropping malformed comparison row`, raw);
+      return [];
+    }
+    return [
+      {
+        field: field as ShipmentFieldComparison["field"],
+        si_value: str(raw.si_value) ?? "",
+        bl_value: str(raw.bl_value) ?? "",
+        status,
+      },
+    ];
+  });
+  return rows.length ? rows : undefined;
+}
+
 function adaptCategory(v: unknown, emailId: string): EmailCategory {
   const key = typeof v === "string" ? v.trim().toLowerCase().replace(/[\s-]+/g, "_") : "";
   const hit = CATEGORY_ALIASES[key];
@@ -142,6 +172,7 @@ export function adaptEmail(raw: unknown): Email {
     defect_fields: Array.isArray(raw.defect_fields)
       ? raw.defect_fields.filter((f): f is string => typeof f === "string")
       : undefined,
+    shipment_comparison: adaptComparison(raw.shipment_comparison, email_id),
   };
 }
 

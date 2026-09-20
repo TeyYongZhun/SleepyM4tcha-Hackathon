@@ -1,6 +1,17 @@
 import { AlertTriangle, CheckCircle2, MinusCircle, XCircle } from "lucide-react";
-import { SHIPMENT_FIELDS, summarizeShipment, type DocCheck } from "@/lib/shipment";
-import type { Email, ShipmentFields } from "@/lib/types";
+import {
+  labelFor,
+  REVIEW_REASON_TEXT,
+  SHIPMENT_FIELDS,
+  summarizeShipment,
+  type DocCheck,
+} from "@/lib/shipment";
+import type {
+  Email,
+  ShipmentFieldComparison,
+  ShipmentFieldKey,
+  ShipmentFields,
+} from "@/lib/types";
 
 type Tone = "ok" | "bad" | "warn";
 
@@ -43,6 +54,13 @@ function docStatus(check: DocCheck, name: string): { tone: Tone; detail: React.R
   }
   return { tone: "bad", detail: `No ${name} attached` };
 }
+
+/** Tint for a compared cell. Match stays plain: only problems should draw the eye. */
+const ROW_TINT: Record<ShipmentFieldComparison["status"], string> = {
+  match: "",
+  mismatch: "bg-bad-bg",
+  unsure: "bg-warn-bg",
+};
 
 /** A required-but-empty value is loud; an optional or not-applicable one is quiet. */
 function Value({
@@ -114,15 +132,57 @@ export function ShipmentChecklist({ email }: { email: Email }) {
             ),
           };
 
-  // One column per source that actually has data (SI file, BL file, the email text).
-  // With none, keep SI and BL so every field is still listed, all marked as absent.
+  // The SI-vs-BL verdict, shown only when a comparison actually ran.
+  const mismatched = (email.shipment_comparison ?? []).filter((r) => r.status === "mismatch");
+  const unsure = (email.shipment_comparison ?? []).filter((r) => r.status === "unsure");
+  const match: { tone: Tone; detail: React.ReactNode } | null = !email.status
+    ? null
+    : email.status === "MISMATCH"
+      ? {
+          tone: "bad",
+          detail: `${mismatched.length} of ${email.shipment_comparison?.length ?? 0} fields differ: ${mismatched
+            .map((r) => labelFor(r.field))
+            .join(", ")}`,
+        }
+      : email.status === "NEEDS_REVIEW"
+        ? {
+            tone: "warn",
+            detail: email.review_reason
+              ? REVIEW_REASON_TEXT[email.review_reason]
+              : `${unsure.length} field(s) could not be checked`,
+          }
+        : {
+            tone: "ok",
+            detail: `All ${email.shipment_comparison?.length ?? 0} compared fields agree`,
+          };
+
+  // The comparison, keyed by field. When the backend ran one it is the only
+  // source of SI/BL values -- it does not send shipment_documents, because the
+  // extracted values already sit behind each verdict.
+  const comparison = new Map<ShipmentFieldKey, ShipmentFieldComparison>(
+    (email.shipment_comparison ?? []).map((row) => [row.field, row]),
+  );
+  const comparedSi: ShipmentFields = {};
+  const comparedBl: ShipmentFields = {};
+  for (const row of comparison.values()) {
+    if (row.si_value) comparedSi[row.field] = row.si_value;
+    if (row.bl_value) comparedBl[row.field] = row.bl_value;
+  }
+
+  // One column per source that actually has data (SI file, BL file, the email
+  // text), falling back to the compared values when no parsed document exists.
+  // With none, keep SI and BL so every field is still listed, all marked absent.
   const sources: Source[] = [
     ...(s.si.presence === "present"
       ? [{ label: "SI", fields: s.si.document!.fields, requiredKey: "siRequired" as const }]
-      : []),
+      : comparison.size
+        ? [{ label: "SI", fields: comparedSi, requiredKey: "siRequired" as const }]
+        : []),
     ...(s.bl.presence === "present"
       ? [{ label: "BL", fields: s.bl.document!.fields, requiredKey: "blRequired" as const }]
-      : []),
+      : comparison.size
+        ? [{ label: "BL", fields: comparedBl, requiredKey: "blRequired" as const }]
+        : []),
     ...(s.email.hasInfo
       ? [{ label: "Email", fields: s.email.fields, requiredKey: "siRequired" as const }]
       : []),
@@ -145,6 +205,7 @@ export function ShipmentChecklist({ email }: { email: Email }) {
         <StatusRow tone={si.tone} title="Shipping Instruction (SI)" detail={si.detail} />
         <StatusRow tone={bl.tone} title="Bill of Lading (BL)" detail={bl.detail} />
         <StatusRow tone={structure.tone} title="SI information structure" detail={structure.detail} />
+        {match && <StatusRow tone={match.tone} title="SI matches BL" detail={match.detail} />}
       </ul>
 
       {s.mentionedButMissing.length > 0 && (
@@ -175,7 +236,10 @@ export function ShipmentChecklist({ email }: { email: Email }) {
         </div>
         <dl className="divide-y divide-line/60">
           {SHIPMENT_FIELDS.map((f) => (
-            <div key={f.key} className={"grid gap-x-3 px-3 py-2 " + cols}>
+            <div
+              key={f.key}
+              className={`grid gap-x-3 px-3 py-2 ${cols} ${ROW_TINT[comparison.get(f.key)?.status ?? "match"]}`}
+            >
               <dt className="text-xs text-ink-soft">{f.label}</dt>
               {columns.map((c) => (
                 <dd key={c.label}>

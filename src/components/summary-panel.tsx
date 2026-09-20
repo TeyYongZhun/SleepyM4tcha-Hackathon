@@ -9,7 +9,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { getCategoryByEmailCategory } from "@/lib/categories";
-import type { ComparisonStatus, Email, EmailCategory, ReviewReason } from "@/lib/types";
+import type { ComparisonStatus, Email, EmailCategory } from "@/lib/types";
+import { REVIEW_REASON_TEXT } from "@/lib/shipment";
 import { ShipmentChecklist } from "./shipment-checklist";
 
 const CATEGORY_ICON: Record<EmailCategory, LucideIcon> = {
@@ -25,13 +26,6 @@ const STATUS_META: Record<ComparisonStatus, { label: string; badge: string; icon
   OK: { label: "SI and BL match", badge: "bg-good-bg text-good", icon: CheckCircle2 },
   MISMATCH: { label: "Mismatch found", badge: "bg-bad-bg text-bad", icon: AlertTriangle },
   NEEDS_REVIEW: { label: "Needs human review", badge: "bg-warn-bg text-warn", icon: UserCheck },
-};
-
-const REVIEW_REASON_TEXT: Record<ReviewReason, string> = {
-  missing_attachment: "only one of the SI / BL was received",
-  unreadable: "a document could not be read (empty, corrupt, or a scan with no text)",
-  wrong_doc_type: "an attachment is not an SI or BL",
-  missing_value: "a compared field is blank on one side",
 };
 
 const LABEL = "text-[10.5px] font-semibold tracking-wide text-ink-soft uppercase";

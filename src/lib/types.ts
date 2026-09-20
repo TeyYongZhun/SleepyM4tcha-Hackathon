@@ -21,6 +21,15 @@ export type EmailCategory =
  */
 export type ComparisonStatus = "OK" | "MISMATCH" | "NEEDS_REVIEW";
 
+/** One field checked on the SI against the same field on the BL. */
+export interface ShipmentFieldComparison {
+  field: ShipmentFieldKey;
+  si_value: string;
+  bl_value: string;
+  /** "unsure" = a value was blank or a placeholder, so no verdict was possible. */
+  status: "match" | "mismatch" | "unsure";
+}
+
 /** Why a pair could not be checked and needs a person (NEEDS_REVIEW only). */
 export type ReviewReason =
   | "missing_attachment"
@@ -118,4 +127,10 @@ export interface Email {
   review_reason?: ReviewReason | null;
   /** Canonical field keys that differ between SI and BL (`status` = "MISMATCH"). */
   defect_fields?: string[];
+  /**
+   * Field-by-field SI-vs-BL result. For backend-served emails this is the only
+   * source of SI/BL values -- `shipment_documents` is not sent, because the
+   * comparison already carries the extracted values behind its verdict.
+   */
+  shipment_comparison?: ShipmentFieldComparison[];
 }
