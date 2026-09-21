@@ -71,7 +71,9 @@ It prints `520 emails: {'category': 520, 'status': 520, 'review_reason': 520, 'd
 
 ## Try it
 
-**Fastest — the demo, no Google account.** Put a random string in `.env.local` as `AUTH_SECRET`, run the website ([LOCAL.md](LOCAL.md)) and click **Try the demo**. It browses the 520 sample emails and needs no Python service. The [live deployment](https://wayboxai.vercel.app) has this ready to click.
+**Fastest — the demo, no Google account.** Put a random string in `.env.local` as `AUTH_SECRET`, run the website ([LOCAL.md](LOCAL.md)) and click **Try the demo**. It always starts on the 520 sample emails and needs no Python service. The [live deployment](https://wayboxai.vercel.app) has this ready to click.
+
+In the demo, the account menu (top right) controls what the inbox holds: **Import data** loads your own inbox (two zips, see [IMPORT.md](IMPORT.md)), **Clear data** empties it, and **Try demo data** puts the 520 sample back. These change one shared setting, so on a deployed site they change it for everyone in the demo, and pressing **Try the demo** again resets it to the sample.
 
 **Best for judging — the organisers' inbox with the real models.** Run both processes with `BACKEND_API_URL=http://localhost:8000` set, then sign in (or use the demo). This is the version the results above describe.
 
@@ -99,6 +101,8 @@ Try **Resolve** on a mismatch, the **Match / Mismatch / Draft BL / Needs review 
 - **Resolve** a Mismatch or Needs-review email once dealt with; it moves to a Resolved filter and can be put back.
 - **AI summary**: category and confidence, the Booking and Carrier ref, and a TL;DR. The TL;DR is written locally by an extractive summariser, so it needs no API key.
 - **Reply in Gmail** from under the email, with an **AI Draft** switch (Gemini when a key is set, otherwise a rule-based draft). The app only writes text; a person presses send. It then watches Sent mail and reports the result as a toast and in a notification bell: sent, delivered, not sent or bounced.
+- **Export** the results as `submission.json` from the top bar (beside the notification bell): every email's category and SI-vs-BL verdict in the organisers' ground-truth format, ready to score. See [Exporting the submission file](#check-it-yourself).
+- **Demo data controls** for the demo account: import your own sample inbox, clear it, or bring the 520 back ([IMPORT.md](IMPORT.md)).
 - **Paged list** (50 a page, newer/older, Refresh), unread dots that stay cleared, attachments previewed inline, a resizable split, light/dark mode, and a layout that stacks on phones.
 
 ## How it fits together
@@ -171,7 +175,7 @@ The recurring idea in both: **an honest "I don't know" beats a confident wrong a
 
 - **Read access, one small change.** Google sign-in asks for `gmail.modify`, used to read the inbox and to clear the *unread* mark on an email you open. The app never sends, deletes or edits mail. Replying opens Gmail's own compose window.
 - **Nothing is stored.** Attachments are fetched from Gmail when a page needs them, held in memory and passed through; they are not written to disk. Messages are held in the server's memory for up to an hour.
-- **What is written to disk.** The server keeps a list of message ids you have opened per account in `.data/read-messages.json` (git-ignored) so the unread dots stay cleared. Resolved flags and notifications live in your browser only.
+- **What is written to disk.** The server keeps a list of message ids you have opened per account in `.data/read-messages.json` (git-ignored) so the unread dots stay cleared. Resolved flags and notifications live in your browser only. Data imported into the **demo account** is kept in `public/import/` (git-ignored) on your machine, or in Vercel Blob on a deployment; it holds sample emails only, never anything from a Google mailbox.
 - **Where email content goes.** Classification and comparison go to the gateway you run yourself (`CLASSIFIER_API_URL`, normally `localhost`); it deletes its temporary copies of attachments when each request ends. The only other destination is Google's Gemini API, and only when `GEMINI_API_KEY` is set *and* you press Reply with **AI Draft** on. The TL;DR never leaves the server.
 - **The demo account** touches no Google service at all.
 
@@ -182,7 +186,8 @@ The recurring idea in both: **an honest "I don't know" beats a confident wrong a
 - **Seven fields are compared.** Shipper, consignee, notify party, ports, container count and gross weight. A difference in, say, the vessel or HS code is not flagged.
 - **Gmail tab counts cover the newest 1,000 messages**, counted in the background, and read "N+" beyond that.
 - **The comparison has a second implementation.** The website carries a TypeScript copy of the comparison rules (`src/lib/demo/compare.ts`), used by the demo account and as the fallback when the Python service is down. The two are kept in step by hand.
-- **No single command builds the merged submission file** (see the note above).
+- **The submission file is exported, not scored, by the app.** The Export button writes `submission.json`; scoring it is the organisers' `score_cli.py` / `POST /submit`. An export from a real Gmail inbox is keyed by Gmail message ids, so it cannot be scored against their ground truth.
+- **The demo data setting is shared.** Import, Clear and Try demo data change it for everyone using the demo account on that deployment, and **Try the demo** resets it. Giving each visitor their own copy is not built.
 - **Google sign-in is limited** to accounts on the OAuth test-user list; the demo account exists so nobody has to be added to browse the product.
 - **Not exercised here:** the Reply and notification flow against a live Gmail account was reviewed in code, not run end to end for this write-up.
 
@@ -198,7 +203,7 @@ The confidence gate in the pipeline above keeps that from becoming confidently w
 | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
 | [LOCAL.md](LOCAL.md)                                   | Running it on your machine: setup, env vars, the gateway API, troubleshooting |
 | [DEPLOYMENT.md](DEPLOYMENT.md)                         | Production: Google Cloud, Vercel, hosting the gateway on Railway              |
-| [IMPORT.md](IMPORT.md)                                 | Replacing the demo's sample inbox with your own data                          |
+| [IMPORT.md](IMPORT.md)                                 | The demo's data controls: import your own inbox, clear it, bring the sample back |
 | [sdoc_classifier/README.md](sdoc_classifier/README.md) | The email category model                                                      |
 | [sdoc_comparator/README.md](sdoc_comparator/README.md) | The SI-vs-BL comparator                                                       |
 | `PLANWORKCOMBINE.md`                                | How the three branches were merged (history, not a guide)                     |
