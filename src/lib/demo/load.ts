@@ -93,15 +93,18 @@ let cache: { version: number; emails: Promise<Email[]> } | undefined;
 export async function loadDemoEmails(): Promise<Email[]> {
   const src = await demoSource();
   if (!cache || cache.version !== src.version) {
-    cache = {
-      version: src.version,
-      emails: (async () => {
-        const files = await src.listInbox();
-        return Promise.all(
-          files.map(async (f) => adapt(JSON.parse(await src.readInbox(f)) as DummyEmail, src)),
-        );
-      })(),
-    };
+    const emails = (async () => {
+      const files = await src.listInbox();
+      return Promise.all(
+        files.map(async (f) => adapt(JSON.parse(await src.readInbox(f)) as DummyEmail, src)),
+      );
+    })();
+    cache = { version: src.version, emails };
+    // A failed read (an imported inbox is fetched over the network) must not be kept: the next
+    // request tries again instead of failing until the data changes.
+    emails.catch(() => {
+      if (cache?.emails === emails) cache = undefined;
+    });
   }
   return cache.emails;
 }

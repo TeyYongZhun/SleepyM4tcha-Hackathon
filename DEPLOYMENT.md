@@ -110,6 +110,10 @@ You can confirm which one is in use: signed in as the demo account,
 `/api/import` reports `"storage":"blob"` once the token is there, and
 `"storage":"disk"` when it is not.
 
+Imports are limited to about 4.5 MB of zips in total on a deployed app: that is Vercel's
+request-body limit for functions, and the import panel says so when it is hit. A larger data
+set has to be imported on a machine running the app itself.
+
 An import (or a Clear) is shared, not per-visitor: it changes the inbox for everyone using
 the demo account until someone presses **Reset to sample data** or **Try demo data**.
 Pressing **Try the demo** on the landing or sign-in page also puts the sample back, so a new
