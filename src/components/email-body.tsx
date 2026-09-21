@@ -25,7 +25,7 @@ export function EmailBody({
   }
 
   const srcDoc = `<!doctype html><html><head><meta charset="utf-8"><base target="_blank">
-<style>body{margin:0;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#1f2937;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style>
+<style>body{margin:0;padding:12px 14px;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.5;color:#1f2937;overflow-wrap:anywhere}img{max-width:100%;height:auto}</style>
 </head><body>${body}</body></html>`;
 
   return (

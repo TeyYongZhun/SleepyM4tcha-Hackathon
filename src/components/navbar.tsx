@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { ChevronDown } from "lucide-react";
@@ -21,9 +22,32 @@ export function Navbar({
   const active = useSelectedLayoutSegment() ?? "all";
   const displayName = user_info.name ?? user_info.email ?? "Account";
   const firstName = displayName.split(/\s+/)[0];
+  const menu = useRef<HTMLDetailsElement>(null);
+
+  // A <details> menu stays open until its own summary is clicked again, so close it on a click
+  // anywhere else, and on Escape. Listening on pointerdown rather than click means it closes
+  // as the press lands, instead of only once the button under it has already been released.
+  useEffect(() => {
+    const closeIfOutside = (e: Event) => {
+      const el = menu.current;
+      if (el?.open && !el.contains(e.target as Node)) el.open = false;
+    };
+    const closeOnEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && menu.current?.open) menu.current.open = false;
+    };
+    document.addEventListener("pointerdown", closeIfOutside);
+    // Tabbing past the menu should dismiss it too; focus events don't bubble, so capture
+    document.addEventListener("focusin", closeIfOutside);
+    document.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeIfOutside);
+      document.removeEventListener("focusin", closeIfOutside);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, []);
 
   return (
-    <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-surface">
+    <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-overlay">
       <div className="flex flex-wrap items-center gap-x-6 px-4 sm:px-6">
         <Link href="/dashboard" className="flex h-16 shrink-0 items-center">
           <Logo />
@@ -57,7 +81,7 @@ export function Navbar({
 
         <div className="ml-auto flex items-center gap-1 lg:ml-0">
           <ThemeToggle />
-        <details className="group relative">
+        <details ref={menu} className="group relative">
           <summary className="flex h-16 cursor-pointer list-none items-center gap-2 rounded-lg px-2 [&::-webkit-details-marker]:hidden">
             <Avatar name={displayName} src={user_info.image} size={28} />
             <span className="hidden max-w-40 truncate text-[13.5px] font-medium text-ink sm:block">
@@ -65,7 +89,7 @@ export function Navbar({
             </span>
             <ChevronDown size={13} className="text-ink-soft" aria-hidden />
           </summary>
-          <div className="absolute right-0 z-20 w-60 rounded-lg border border-line bg-surface p-2 shadow-lg">
+          <div className="absolute right-0 z-20 w-60 rounded-lg border border-line bg-overlay p-2 shadow-lg">
             <div className="border-b border-line px-3 pb-2">
               <p className="truncate text-sm font-medium text-ink">{user_info.name}</p>
               <p className="truncate text-xs text-ink-soft">{user_info.email}</p>

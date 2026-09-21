@@ -23,7 +23,7 @@ export function ResolveButton({ emailId, status }: { emailId: string; status?: C
     <button
       type="button"
       onClick={() => setResolved(emailId, true)}
-      className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-btn px-3 py-1.5 text-[12px] font-semibold text-on-btn transition hover:bg-btn-hover"
+      className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-btn px-3 py-1.5 text-[12px] font-semibold text-on-btn btn-lift hover:bg-btn-hover"
     >
       <CheckCheck size={14} aria-hidden />
       Resolve

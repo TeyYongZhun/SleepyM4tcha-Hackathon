@@ -12,6 +12,7 @@ import type { InboxRow } from "@/components/inbox-pane";
 import { displayName } from "./format";
 import { PAGE_SIZE } from "./paging";
 import { labelFor } from "./shipment";
+import { withSummary } from "./summarize";
 import { MOCK_EMAILS } from "./mock-data";
 import type { Email, ShipmentFieldKey } from "./types";
 
@@ -42,11 +43,16 @@ export interface InboxPageResult extends InboxPage {
 }
 
 /** One page (PAGE_SIZE) of the inbox for a filter tab, newest first, from whichever source applies. */
-export async function getInboxPage(slug: CategorySlug, page: number): Promise<InboxPageResult> {
+export async function getInboxPage(
+  slug: CategorySlug,
+  page: number,
+  /** Read this page from the source again rather than from anything held (the Refresh button). */
+  opts: { refresh?: boolean } = {},
+): Promise<InboxPageResult> {
   const session = await auth();
   if (await usesGmail()) {
     const token = session!.accessToken!;
-    const gmail = await getGmailPage(token, session!.user.id, page);
+    const gmail = await getGmailPage(token, session!.user.id, page, opts);
     // The row badges ("Mismatch", "Needs review") come from `status`, which only
     // exists once the attachments have been read -- so the list has to do it too,
     // not just the opened email. Messages without attachments cost nothing and
@@ -101,7 +107,14 @@ export const getEmails = cache(async (): Promise<Email[]> => {
   return [...emails].sort((a, b) => time(b) - time(a));
 });
 
+/** One email with everything the email page shows, whichever source it comes from. */
 export async function getEmail(emailId: string): Promise<Email | undefined> {
+  const email = await loadEmail(emailId);
+  // The TL;DR is written here, on open, not for the whole list: it is only shown for one email
+  return email && withSummary(email);
+}
+
+async function loadEmail(emailId: string): Promise<Email | undefined> {
   const session = await auth();
   if (session?.demo) return loadDemoEmail(emailId);
 
