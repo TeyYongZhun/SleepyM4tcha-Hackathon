@@ -2,7 +2,7 @@ import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { cookies } from "next/headers";
-import { del, head, list, put } from "@vercel/blob";
+import { del, list, put } from "@vercel/blob";
 import JSZip from "jszip";
 
 /**
@@ -48,7 +48,25 @@ export interface SavedFile {
 }
 
 const BLOB_PREFIX = "wayboxai/import";
-const MANIFEST_PATH = `${BLOB_PREFIX}/manifest.json`;
+
+/**
+ * Every Blob write goes to a path that has never been used before -- the manifest included.
+ *
+ * A Blob URL is served through a CDN, and `addRandomSuffix: false` gives the same pathname
+ * the same URL for ever. Writing an import over the last one therefore left readers fetching
+ * the *previous* import's bytes from the edge: a month for the data files (the default
+ * lifetime), a minute for the manifest. `cache: "no-store"` on the fetch does not help --
+ * that governs Next's own cache, not the CDN in front of the store. The store is only ever
+ * consistent per URL, so the fix is to never reuse one.
+ *
+ * Which version is current is then a question for `list()`, an authenticated API call that
+ * does not go through the CDN at all.
+ */
+const manifestPath = (version: number) => `${BLOB_PREFIX}/manifest-${version}.json`;
+const bundlePath = (version: number, name: string) => `${BLOB_PREFIX}/${version}/${name}`;
+
+/** Written by earlier versions of the app, which overwrote one fixed path. Read, never written. */
+const LEGACY_MANIFEST = `${BLOB_PREFIX}/manifest.json`;
 
 export const IMPORT_DIR = path.join(process.cwd(), "public", "import");
 const DISK_MANIFEST = path.join(IMPORT_DIR, "manifest.json");
@@ -89,10 +107,12 @@ async function changedAtByThisBrowser(): Promise<number> {
 }
 
 /**
- * Called by the code that just wrote: drops what this instance holds, and tells the browser
- * that made the change (see CHANGED_COOKIE) so other instances re-read for it.
+ * Called by the code that just wrote: tells the browser that made the change (see
+ * CHANGED_COOKIE) so other instances re-read for it, and replaces what this instance holds
+ * with the manifest just written -- a listing can take a moment to show a brand new file, and
+ * the instance that did the writing has no reason to go and ask.
  */
-export async function invalidateManifest(): Promise<void> {
+export async function invalidateManifest(written?: ImportManifest): Promise<void> {
   g.__wayboxImportManifest = undefined;
   try {
     (await cookies()).set(CHANGED_COOKIE, String(Date.now()), {
@@ -104,13 +124,27 @@ export async function invalidateManifest(): Promise<void> {
   } catch {
     // not inside a request: nobody's browser to tell
   }
+  // After the cookie, so this counts as read later than the change it describes
+  if (written) g.__wayboxImportManifest = { at: Date.now(), manifest: written };
 }
 
 async function readManifestUncached(): Promise<ImportManifest | null> {
   if (usingBlob()) {
     try {
-      const meta = await head(MANIFEST_PATH);
-      const res = await fetch(meta.url, { cache: "no-store" });
+      // Listing is an API call, so it always tells the truth about what the store holds; the
+      // manifest it points at is at a path unique to its version, so its body cannot be a
+      // stale edge copy of an older one. There is one manifest at a time, but a delete takes
+      // a moment to show in a listing, so the newest wins rather than the only one.
+      const { blobs } = await list({ prefix: `${BLOB_PREFIX}/manifest`, limit: 1000 });
+      const found = blobs
+        .map((b) => ({
+          url: b.url,
+          version: b.pathname === LEGACY_MANIFEST ? 0 : Number(/manifest-(\d+)\.json$/.exec(b.pathname)?.[1]),
+        }))
+        .filter((b) => Number.isFinite(b.version))
+        .sort((a, b) => b.version - a.version);
+      if (!found.length) return null;
+      const res = await fetch(found[0].url, { cache: "no-store" });
       if (!res.ok) return null;
       return (await res.json()) as ImportManifest;
     } catch {
@@ -197,22 +231,35 @@ export async function readAttachmentBytes(m: ImportManifest, name: string): Prom
   return fs.readFile(path.join(IMPORT_DIR, "attachments", name));
 }
 
+/**
+ * Removes everything the store holds for the demo except the files belonging to `keep` (a
+ * version that has just been written). Called after the new manifest is in place, so there is
+ * never a moment when the app can see neither the old data nor the new.
+ *
+ * It pages: the store lists 1,000 at a time, and taking only the first page left the rest
+ * behind -- the manifest among them, so "back to the sample" quietly did nothing.
+ */
+async function removeBlobs(keep?: number): Promise<void> {
+  const keptFolder = keep === undefined ? null : `${BLOB_PREFIX}/${keep}/`;
+  const keptManifest = keep === undefined ? null : manifestPath(keep);
+  const urls: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await list({ prefix: BLOB_PREFIX, cursor, limit: 1000 });
+    for (const b of page.blobs) {
+      if (b.pathname === keptManifest) continue;
+      if (keptFolder && b.pathname.startsWith(keptFolder)) continue;
+      urls.push(b.url);
+    }
+    cursor = page.hasMore ? page.cursor : undefined;
+  } while (cursor);
+  for (let i = 0; i < urls.length; i += 500) await del(urls.slice(i, i + 500));
+}
+
+/** Throws away whatever is stored: no import, no clear, so the bundled sample shows again. */
 export async function clearImport(): Promise<void> {
-  if (usingBlob()) {
-    // The store lists 1,000 at a time. An import made file by file is more than that, and
-    // taking only the first page left the rest behind -- the manifest, which sorts last, among
-    // them, so "back to the sample" quietly did nothing.
-    const urls: string[] = [];
-    let cursor: string | undefined;
-    do {
-      const page = await list({ prefix: BLOB_PREFIX, cursor, limit: 1000 });
-      urls.push(...page.blobs.map((b) => b.url));
-      cursor = page.hasMore ? page.cursor : undefined;
-    } while (cursor);
-    for (let i = 0; i < urls.length; i += 500) await del(urls.slice(i, i + 500));
-  } else {
-    await fs.rm(IMPORT_DIR, { recursive: true, force: true });
-  }
+  if (usingBlob()) await removeBlobs();
+  else await fs.rm(IMPORT_DIR, { recursive: true, force: true });
   await invalidateManifest();
 }
 
@@ -221,11 +268,12 @@ export async function saveImport(
   inbox: SavedFile[],
   attachments: SavedFile[],
 ): Promise<ImportManifest> {
-  await clearImport();
   const manifest: ImportManifest = { version: Date.now(), inbox: {}, attachments: {} };
 
   if (usingBlob()) {
-    // Two uploads however big the import (see `ImportManifest.bundle`)
+    // Two uploads however big the import (see `ImportManifest.bundle`), to paths belonging to
+    // this version alone. Nothing is deleted until they and the manifest are in place, so an
+    // upload that fails leaves the demo showing what it showed before rather than nothing.
     const records = JSON.stringify(Object.fromEntries(inbox.map((f) => [f.name, f.bytes.toString("utf8")])));
     const zip = new JSZip();
     for (const f of attachments) zip.file(f.name, f.bytes, { binary: true });
@@ -233,7 +281,7 @@ export async function saveImport(
 
     const upload = async (name: string, body: string | Buffer, contentType: string) =>
       (
-        await put(`${BLOB_PREFIX}/${name}`, body, {
+        await put(bundlePath(manifest.version, name), body, {
           access: "public",
           addRandomSuffix: false,
           allowOverwrite: true,
@@ -247,21 +295,25 @@ export async function saveImport(
     manifest.bundle = { inbox: inboxUrl, attachments: attachmentsUrl };
     for (const f of inbox) manifest.inbox[f.name] = "";
     for (const f of attachments) manifest.attachments[f.name] = "";
-  } else {
-    for (const [folder, files] of [
-      ["inbox", inbox],
-      ["attachments", attachments],
-    ] as const) {
-      await fs.mkdir(path.join(IMPORT_DIR, folder), { recursive: true });
-      for (const f of files) {
-        await fs.writeFile(path.join(IMPORT_DIR, folder, f.name), f.bytes);
-        manifest[folder][f.name] = ""; // on disk: the path is implied by the folder
-      }
-    }
+    await writeManifest(manifest);
+    await removeBlobs(manifest.version);
+    await invalidateManifest(manifest);
+    return manifest;
   }
 
+  await clearImport();
+  for (const [folder, files] of [
+    ["inbox", inbox],
+    ["attachments", attachments],
+  ] as const) {
+    await fs.mkdir(path.join(IMPORT_DIR, folder), { recursive: true });
+    for (const f of files) {
+      await fs.writeFile(path.join(IMPORT_DIR, folder, f.name), f.bytes);
+      manifest[folder][f.name] = ""; // on disk: the path is implied by the folder
+    }
+  }
   await writeManifest(manifest);
-  await invalidateManifest();
+  await invalidateManifest(manifest);
   return manifest;
 }
 
@@ -272,26 +324,33 @@ export async function saveImport(
  * serverless host exactly as it does on disk.
  */
 export async function saveEmpty(): Promise<ImportManifest> {
-  await clearImport();
   const manifest: ImportManifest = { version: Date.now(), inbox: {}, attachments: {}, empty: true };
+  // The manifest first, then the files it replaces: the inbox reads as empty from the moment
+  // it lands, and a delete that fails half way cannot leave the old import as the live one.
   await writeManifest(manifest);
-  await invalidateManifest();
+  if (usingBlob()) await removeBlobs(manifest.version);
+  else {
+    for (const folder of ["inbox", "attachments"]) {
+      await fs.rm(path.join(IMPORT_DIR, folder), { recursive: true, force: true });
+    }
+  }
+  await invalidateManifest(manifest);
   return manifest;
 }
 
 /**
- * Puts the manifest where readers look for it. It is the one file that is overwritten in
- * place, so its cache lifetime is kept short (60s is the store's minimum): the default is a
- * month, which could leave other instances reading the previous state for as long.
+ * Puts the manifest where readers look for it. On Blob that is a path carrying its version,
+ * so the file is never written twice and the edge cache in front of it can only ever hold the
+ * right body; `readManifestUncached` finds it by listing. On disk one path is fine -- there
+ * is no cache and no second reader.
  */
 async function writeManifest(manifest: ImportManifest): Promise<void> {
   if (usingBlob()) {
-    await put(MANIFEST_PATH, JSON.stringify(manifest), {
+    await put(manifestPath(manifest.version), JSON.stringify(manifest), {
       access: "public",
       addRandomSuffix: false,
       allowOverwrite: true,
       contentType: "application/json",
-      cacheControlMaxAge: 60,
     });
   } else {
     await fs.mkdir(IMPORT_DIR, { recursive: true });

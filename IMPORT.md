@@ -37,7 +37,7 @@ This is the part worth understanding, because it is not the same in both places.
 | | Destination |
 | --- | --- |
 | **Local** (no Blob token) | `public/import/inbox/` and `public/import/attachments/`, on disk |
-| **Deployed** (Blob token set) | Vercel Blob: `wayboxai/import/inbox.json`, `wayboxai/import/attachments.zip`, `wayboxai/import/manifest.json` |
+| **Deployed** (Blob token set) | Vercel Blob: `wayboxai/import/<version>/inbox.json`, `wayboxai/import/<version>/attachments.zip`, `wayboxai/import/manifest-<version>.json` |
 
 It is one or the other, never both. `src/lib/demo/import-store.ts` branches on whether
 `BLOB_READ_WRITE_TOKEN` is set and only one side ever runs.
@@ -47,16 +47,29 @@ filesystem is read-only, and anything written to it would be gone by the next re
 any case. That is the whole reason the Blob backend exists.
 
 Blob holds an import as **two files, not one per email**: `inbox.json` (every email record)
-and `attachments.zip` (every attachment, stored uncompressed), beside a small
-`manifest.json`. Every Blob call is a network round trip, so keeping the disk layout there
-made a 700-email import 1,237 uploads one after another (79 s, measured against a stand-in
-Blob API at 60 ms per call) and the first inbox load 1,237 reads. As two files the same
-import uploads in about half a second and loads with two reads. Disk keeps one file per
-email, as the table says, because reading a file there costs nothing.
+and `attachments.zip` (every attachment, stored uncompressed), beside a small manifest.
+Every Blob call is a network round trip, so keeping the disk layout there made a 700-email
+import 1,237 uploads one after another (79 s, measured against a stand-in Blob API at 60 ms
+per call) and the first inbox load 1,237 reads. As two files the same import uploads in
+about half a second and loads with two reads. Disk keeps one file per email, as the table
+says, because reading a file there costs nothing.
 
-An import made by an older version of the app (one Blob per file) is still read as it was,
-and Reset, Clear and Try demo data delete every blob under `wayboxai/import/`, however many
-there are.
+**Nothing is ever written twice to the same Blob path**, which is what the `<version>` in
+those names is for. A Blob URL is served through a CDN, and the same pathname always has the
+same URL, so writing an import over the last one left the edge holding the previous import's
+bytes -- for a month, the default lifetime, or for `cacheControlMaxAge` where one was set.
+Importing again then showed the emails you had just replaced, and Clear data appeared to do
+nothing at all. `cache: "no-store"` on the fetch does not help: that governs Next's own
+cache, not the CDN in front of the store. A URL that has never been used cannot be stale,
+so every import writes to a folder of its own and the manifest carries its version in its
+name. Which one is current is then answered by `list()`, an authenticated API call that
+does not go through the CDN.
+
+Two things follow. The new files go up **before** the old ones come down, so an import that
+fails half way leaves the demo showing what it showed before rather than nothing. And an
+import made by an older version of the app (one Blob per file, one fixed manifest path) is
+still read exactly as it was; Reset, Clear and Try demo data delete every blob under
+`wayboxai/import/`, however many there are and whichever layout wrote them.
 
 Two consequences that surprise people:
 

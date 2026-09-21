@@ -2,7 +2,6 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { useRouter } from "next/navigation";
 import { FileArchive, Loader2, Upload, X } from "lucide-react";
 
 /**
@@ -90,7 +89,6 @@ function DropZone({
 }
 
 function Dialog({ onClose }: { onClose: () => void }) {
-  const router = useRouter();
   const [inbox, setInbox] = useState<File | null>(null);
   const [attachments, setAttachments] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -136,8 +134,11 @@ function Dialog({ onClose }: { onClose: () => void }) {
         }
         throw new Error(data.error || "Import failed");
       }
-      onClose();
-      router.refresh();
+      // A whole page load rather than router.refresh(): every email on the page belongs to
+      // the data that has just been replaced, and the request carries the cookie that tells
+      // whichever serverless instance answers it to read the store again. The panel stays as
+      // it is, busy, until the new page arrives.
+      window.location.assign("/dashboard/all");
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);
@@ -150,8 +151,7 @@ function Dialog({ onClose }: { onClose: () => void }) {
     try {
       const res = await fetch("/api/import", { method: "DELETE" });
       if (!res.ok) throw new Error("Could not remove the imported data");
-      onClose();
-      router.refresh();
+      window.location.assign("/dashboard/all");
     } catch (e) {
       setError((e as Error).message);
       setBusy(false);

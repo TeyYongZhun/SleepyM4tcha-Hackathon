@@ -1,7 +1,6 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { Database, Loader2, Trash2, type LucideIcon } from "lucide-react";
 
 /**
@@ -29,29 +28,28 @@ function DataAction({
   /** Asked first when the action throws data away */
   confirm?: string;
 }) {
-  const router = useRouter();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  async function run(e: React.MouseEvent<HTMLButtonElement>) {
+  async function run() {
     if (busy) return;
     if (confirm && !window.confirm(confirm)) return;
-    const menu = e.currentTarget.closest("details");
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch("/api/import", { method });
+      const res = await fetch("/api/import", { method, cache: "no-store" });
       if (!res.ok) {
         const data = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(data.error || `Failed (${res.status})`);
       }
-      menu?.removeAttribute("open");
-      // Whatever email was open may no longer exist, so start from the inbox
-      router.replace("/dashboard/all");
-      router.refresh();
+      // A whole page load, not router.refresh(): the inbox is a different set of emails now,
+      // and everything the open page is holding -- the rows, the tab counts, whichever email
+      // was being read -- belongs to the old one. The request also carries the cookie that
+      // tells whichever instance answers it to read the store again rather than what it last
+      // saw. Nothing is reset here, because the page is on its way out.
+      window.location.assign("/dashboard/all");
     } catch (err) {
       setError((err as Error).message);
-    } finally {
       setBusy(false);
     }
   }
