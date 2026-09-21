@@ -4,14 +4,16 @@ import Google from "next-auth/providers/google";
 import type { JWT } from "next-auth/jwt";
 
 /**
- * Google sign-in. We request Gmail read-only access + offline access so the
- * backend can read the inbox on the user's behalf using the access token.
+ * Google sign-in. We request Gmail access + offline access so the backend can read the
+ * inbox on the user's behalf using the access token. It is gmail.modify rather than
+ * gmail.readonly only so an opened email can be marked read in Gmail itself (removing the
+ * UNREAD label): that call is refused under read-only. The app changes nothing else.
  */
 const GOOGLE_SCOPES = [
   "openid",
   "email",
   "profile",
-  "https://www.googleapis.com/auth/gmail.readonly",
+  "https://www.googleapis.com/auth/gmail.modify",
 ].join(" ");
 
 async function refreshAccessToken(token: JWT): Promise<JWT> {
@@ -82,6 +84,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (account) {
         return {
           ...token,
+          // Auth.js gives every sign-in a fresh random user id (there is no database to
+          // remember one), so on its own it can't say "the same person as last time" -- and
+          // everything filed per account (read dots, resolved flags, notifications) would start
+          // over at each sign-in. Google's own id for the account stays the same.
+          sub: account.providerAccountId,
           accessToken: account.access_token,
           refreshToken: account.refresh_token,
           expiresAt: account.expires_at,

@@ -14,8 +14,9 @@ import { useUserInfo } from "./user-provider";
 
 /**
  * A Gmail inbox is counted in the background, so the totals arrive in stages: ask, show
- * what's there, and ask again a couple of seconds later until it says it is finished. After
- * that it only checks back once a minute (the server recounts on its own schedule).
+ * what's there, and ask again a couple of seconds later until it says it is finished. The
+ * first ask, and coming back to the tab, ask for a recount so new mail is counted straight
+ * away; after that it checks back every half minute (the server recounts at least once a minute).
  */
 function useLiveCounts(enabled: boolean): InboxCounts | null {
   const [snap, setSnap] = useState<InboxCounts | null>(null);
@@ -23,10 +24,11 @@ function useLiveCounts(enabled: boolean): InboxCounts | null {
     if (!enabled) return;
     let alive = true;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const tick = async () => {
+    const tick = async (fresh = false) => {
+      clearTimeout(timer);
       let done = false;
       try {
-        const res = await fetch("/api/inbox/counts", { cache: "no-store" });
+        const res = await fetch(`/api/inbox/counts${fresh ? "?fresh=1" : ""}`, { cache: "no-store" });
         if (res.ok && res.status !== 204) {
           const next = (await res.json()) as InboxCounts;
           if (!alive) return;
@@ -34,12 +36,17 @@ function useLiveCounts(enabled: boolean): InboxCounts | null {
           done = next.done;
         }
       } catch {} // offline or restarting: try again on the next tick
-      if (alive) timer = setTimeout(tick, done ? 60_000 : 2_000);
+      if (alive) timer = setTimeout(tick, done ? 30_000 : 2_000);
     };
-    tick();
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick(true);
+    };
+    tick(true);
+    document.addEventListener("visibilitychange", onVisible);
     return () => {
       alive = false;
       clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisible);
     };
   }, [enabled]);
   return snap;
