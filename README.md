@@ -198,6 +198,7 @@ The confidence gate in the pipeline above keeps that from becoming confidently w
 | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
 | [LOCAL.md](LOCAL.md)                                   | Running it on your machine: setup, env vars, the gateway API, troubleshooting |
 | [DEPLOYMENT.md](DEPLOYMENT.md)                         | Production: Google Cloud, Vercel, hosting the gateway on Railway              |
+| [IMPORT.md](IMPORT.md)                                 | Replacing the demo's sample inbox with your own data                          |
 | [sdoc_classifier/README.md](sdoc_classifier/README.md) | The email category model                                                      |
 | [sdoc_comparator/README.md](sdoc_comparator/README.md) | The SI-vs-BL comparator                                                       |
 | `PLANWORKCOMBINE.md`                                | How the three branches were merged (history, not a guide)                     |

@@ -1,12 +1,9 @@
 import "server-only";
-import fs from "node:fs/promises";
-import path from "node:path";
 import JSZip from "jszip";
 import { extractText, getDocumentProxy } from "unpdf";
 import { detectDocKind, kindFromFilename, parseShipmentText } from "./parse";
+import { demoSource } from "./source";
 import type { Attachment, ShipmentDocument } from "../types";
-
-const DUMMY_DIR = path.join(process.cwd(), "public", "dummy");
 
 const decodeXml = (s: string) =>
   s
@@ -71,24 +68,29 @@ export function bufferToText(buf: Buffer, ext: string): Promise<string> {
   throw new Error(`unsupported type: ${ext}`);
 }
 
-async function fileToText(abs: string, ext: string): Promise<string> {
-  return bufferToText(await fs.readFile(abs), ext);
-}
-
 // Lives in parse.ts so the comparison can use it without pulling in this server-only module
 export { kindFromFilename };
 
+// Keyed by attachment path, which an import reuses for different bytes, so the whole map is
+// dropped when the data changes rather than serving the previous inbox's fields.
 const cache = new Map<string, Promise<ShipmentDocument | null>>();
+let cacheVersion = -1;
 
-function analyzeOne(a: Attachment): Promise<ShipmentDocument | null> {
+async function analyzeOne(a: Attachment): Promise<ShipmentDocument | null> {
   const ext = a.filename.split(".").pop()?.toLowerCase() ?? "";
-  if (!READABLE_EXTENSIONS.includes(ext)) return Promise.resolve(null);
+  if (!READABLE_EXTENSIONS.includes(ext)) return null;
+
+  const src = await demoSource();
+  if (src.version !== cacheVersion) {
+    cache.clear();
+    cacheVersion = src.version;
+  }
 
   let hit = cache.get(a.id);
   if (!hit) {
     hit = (async () => {
       try {
-        const text = await fileToText(path.join(DUMMY_DIR, a.id), ext);
+        const text = await bufferToText(await src.readAttachment(a.id), ext);
         // Scanned/image-only PDFs have no text layer to read
         if (text.trim().length < 20) throw new Error("no text");
         return {

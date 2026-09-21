@@ -172,6 +172,16 @@ the email text and the `.txt` / `.pdf` / `.docx` / `.xlsx` attachments, and
 scanned, to show the "couldn't be read" state. Reply works on a timer here, since
 there is no Sent mail to check.
 
+### Importing your own sample data
+
+The demo account's menu has **Import data**: two zips, one of inbox `.json` records
+and one of the attachments they name. Whatever is imported replaces the bundled
+sample entirely, and **Reset to sample data** puts the 520 emails back. Locally the
+files land in `public/import/` (git-ignored).
+
+Full details — zip layout, the record shape, storage on a deployed app, and the API —
+are in [IMPORT.md](IMPORT.md).
+
 ### The gateway API
 
 `backend/app.py` serves these to the website. Types are in `src/lib/types.ts`, and

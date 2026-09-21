@@ -42,6 +42,8 @@ export interface UserInfo {
   name: string | null;
   email: string | null;
   image: string | null;
+  /** The demo login, which browses sample data instead of a real mailbox */
+  demo?: boolean;
 }
 
 export interface EmailAddress {

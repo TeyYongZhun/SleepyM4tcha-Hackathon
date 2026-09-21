@@ -7,6 +7,7 @@ import { ChevronDown } from "lucide-react";
 import { CATEGORIES, type CategorySlug, type InboxCounts } from "@/lib/categories";
 import { useDetailsDismiss } from "@/lib/use-details-dismiss";
 import { Avatar } from "./avatar";
+import { ImportButton } from "./import-dialog";
 import { Logo } from "./logo";
 import { NotificationBell } from "./notification-bell";
 import { ThemeToggle } from "./theme-toggle";
@@ -125,7 +126,11 @@ export function Navbar({
               <p className="truncate text-sm font-medium text-ink">{user_info.name}</p>
               <p className="truncate text-xs text-ink-soft">{user_info.email}</p>
             </div>
-            <div className="pt-1">{signOutSlot}</div>
+            <div className="pt-1">
+              {/* Only the demo browses sample data, so only it has anything to replace */}
+              {user_info.demo && <ImportButton />}
+              {signOutSlot}
+            </div>
           </div>
         </details>
         </div>

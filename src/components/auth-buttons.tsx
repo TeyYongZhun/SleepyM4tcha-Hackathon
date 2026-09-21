@@ -1,3 +1,4 @@
+import { LogOut } from "lucide-react";
 import { DEMO_ENABLED, signIn, signOut } from "@/auth";
 
 const GoogleIcon = () => (
@@ -81,10 +82,12 @@ export function SignOutButton() {
         await signOut({ redirectTo: "/" });
       }}
     >
+      {/* Same shape as Import data above it, so the two read as one list */}
       <button
         type="submit"
-        className="w-full rounded-md px-3 py-2 text-left text-sm text-ink hover:bg-paper-2"
+        className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm text-ink hover:bg-paper-2"
       >
+        <LogOut size={14} className="text-ink-soft" aria-hidden />
         Sign out
       </button>
     </form>
