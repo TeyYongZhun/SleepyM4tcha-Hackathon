@@ -157,10 +157,10 @@ export function filterEmails(emails: Email[], slug: CategorySlug): Email[] {
  * has been counted so far; the tab bar asks again until `done`. Null when the account
  * isn't a Gmail one (those get exact counts up front from countByCategory).
  */
-export async function getLiveCounts(): Promise<InboxCounts | null> {
+export async function getLiveCounts(opts: { fresh?: boolean } = {}): Promise<InboxCounts | null> {
   if (!(await usesGmail())) return null;
   const session = await auth();
-  const snap = getGmailCounts(session!.accessToken!, session!.user.id);
+  const snap = getGmailCounts(session!.accessToken!, session!.user.id, opts);
   const counts = {} as Record<CategorySlug, number>;
   let all = 0;
   for (const { slug, category } of CATEGORIES) {

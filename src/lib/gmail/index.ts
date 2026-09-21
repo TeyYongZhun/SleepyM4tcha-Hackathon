@@ -184,7 +184,11 @@ export async function getMessage(
 
 /** Newest messages counted. Keeps a huge inbox inside Gmail's quota; past it, totals read "N+". */
 const COUNT_CAP = 1000;
-const COUNT_TTL_MS = 5 * 60_000;
+// A recount is cheap -- a list call or two, plus only the messages not seen before -- so the
+// totals are never allowed to get much older than a minute, and a page load asks for a
+// fresh one (COUNT_MIN_GAP_MS only stops a stack of reloads from each starting a scan).
+const COUNT_TTL_MS = 60_000;
+const COUNT_MIN_GAP_MS = 5_000;
 const COUNT_RETRY_MS = 60_000;
 
 export interface InboxCategoryCounts {
@@ -240,8 +244,10 @@ async function scanInbox(token: string, userKey: string, state: CountState): Pro
   const store = storeFor(userKey);
   const todo: string[] = [];
   for (const id of counted) {
+    // Held is enough, however old: a message's category doesn't change, and only what has
+    // never been read needs fetching -- which is what keeps a recount to a call or two.
     const held = store.get(id);
-    if (fresh(held)) counts[held!.email.category]++;
+    if (held) counts[held.email.category]++;
     else todo.push(id);
   }
   publish(false);
@@ -268,12 +274,20 @@ async function scanInbox(token: string, userKey: string, state: CountState): Pro
 /**
  * The per-category totals so far (null before the first scan has anything), starting or
  * refreshing the background count when there is none or it has aged out. Never waits on Gmail.
+ * `fresh` is a page load or a return to the tab: recount now rather than wait out the TTL.
+ * While a recount is running the last full totals are still returned, marked not `done`, so
+ * the caller knows to ask again shortly.
  */
-export function getInboxCounts(token: string, userKey: string): InboxCategoryCounts | null {
+export function getInboxCounts(
+  token: string,
+  userKey: string,
+  opts: { fresh?: boolean } = {},
+): InboxCategoryCounts | null {
   let state = counters.get(userKey);
   if (!state) counters.set(userKey, (state = { at: 0, running: false, failed: false }));
   const age = Date.now() - state.at;
-  if (!state.running && age > (state.failed ? COUNT_RETRY_MS : COUNT_TTL_MS)) {
+  const wait = state.failed ? COUNT_RETRY_MS : opts.fresh ? COUNT_MIN_GAP_MS : COUNT_TTL_MS;
+  if (!state.running && age > wait) {
     const st = state;
     st.running = true;
     st.failed = false;
@@ -287,7 +301,7 @@ export function getInboxCounts(token: string, userKey: string): InboxCategoryCou
         st.running = false;
       });
   }
-  return state.view ?? null;
+  return state.view ? { ...state.view, done: state.view.done && !state.running } : null;
 }
 
 /**
