@@ -172,6 +172,16 @@ the email text and the `.txt` / `.pdf` / `.docx` / `.xlsx` attachments, and
 scanned, to show the "couldn't be read" state. Reply works on a timer here, since
 there is no Sent mail to check.
 
+### Importing your own sample data
+
+The demo account's menu has **Import data**: two zips, one of inbox `.json` records
+and one of the attachments they name. Whatever is imported replaces the bundled
+sample entirely, and **Reset to sample data** puts the 520 emails back. Locally the
+files land in `public/import/` (git-ignored).
+
+Full details — zip layout, the record shape, storage on a deployed app, and the API —
+are in [IMPORT.md](IMPORT.md).
+
 ### The gateway API
 
 `backend/app.py` serves these to the website. Types are in `src/lib/types.ts`, and
@@ -234,6 +244,7 @@ code.
 | Categories look wrong / everything is General                                        | The ML service isn't running, so it fell back to keyword rules. Start terminal 2                                                                                       |
 | No SI/BL comparison on a Gmail email                                                | Needs exactly one readable SI **and** one readable BL attachment. With the ML service down you get the built-in comparison instead of the model's                       |
 | Tab numbers show "N+" or keep filling in                                            | Normal on a big inbox: only the newest 1,000 messages are counted, in the background                                                                                   |
+| Sample PDFs report "couldn't be read" on Windows                                    | A clone made before `.gitattributes` existed: Git rewrote line endings inside the PDFs and shifted their internal offsets. Repair with `git rm --cached -r . && git reset --hard` |
 | AI Draft is a short generic reply                                                   | No `GEMINI_API_KEY`, or the Gemini call failed, so the rule-based draft was used                                                                                        |
 | `403 insufficient authentication scopes`                                            | Gmail API not enabled, or `gmail.modify` missing from the consent screen, or Google reused an old grant. Revoke it at myaccount.google.com/permissions and sign in again |
 

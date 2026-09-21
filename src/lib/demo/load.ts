@@ -6,18 +6,17 @@ import { buildDemoSummary, classifyDemoEmail } from "./classify";
 import { assessShipmentDocuments, bodyClaimsAttachment } from "./compare";
 import { analyzeAttachments } from "./extract";
 import { parseEmailBody } from "./parse";
+import { DUMMY_DIR, type DemoSource, demoSource } from "./source";
 
-/** Shape of the JSON files in public/dummy/inbox */
+/** Shape of the JSON files in the active `inbox/` folder */
 interface DummyEmail {
   email_id: string;
   from: string;
   subject: string;
   body: string;
-  /** Paths relative to public/dummy, e.g. "attachments/email_001_SI.txt" */
+  /** Paths relative to the data root, e.g. "attachments/email_001_SI.txt" */
   attachments: string[];
 }
-
-const DUMMY_DIR = path.join(process.cwd(), "public", "dummy");
 
 const MIME: Record<string, string> = {
   txt: "text/plain",
@@ -26,21 +25,25 @@ const MIME: Record<string, string> = {
   docx: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 };
 
-async function toAttachment(rel: string): Promise<Attachment> {
+async function toAttachment(rel: string, src: DemoSource): Promise<Attachment> {
   const filename = path.basename(rel);
   const ext = filename.split(".").pop()?.toLowerCase() ?? "";
-  const stat = await fs.stat(path.join(DUMMY_DIR, rel)).catch(() => null);
+  // Only shown next to the filename, and an imported file's size would cost a fetch to
+  // learn, so it is left at 0 rather than reading every attachment to render the list.
+  const size = src.imported
+    ? 0
+    : ((await fs.stat(path.join(DUMMY_DIR, rel)).catch(() => null))?.size ?? 0);
   return {
     id: rel,
     filename,
     mime_type: MIME[ext] ?? "application/octet-stream",
-    size: stat?.size ?? 0,
-    url: `/dummy/${rel}`,
+    size,
+    url: `${src.urlBase}/${rel}`,
   };
 }
 
-async function adapt(raw: DummyEmail): Promise<Email> {
-  const attachments = await Promise.all(raw.attachments.map(toAttachment));
+async function adapt(raw: DummyEmail, src: DemoSource): Promise<Email> {
+  const attachments = await Promise.all(raw.attachments.map((rel) => toAttachment(rel, src)));
   const { category, reason, confidence } = classifyDemoEmail(raw);
   const email: Email = {
     email_id: raw.email_id,
@@ -81,20 +84,26 @@ function shipmentVerdict(email: Email, docs: ShipmentDocument[]) {
   });
 }
 
-let cache: Promise<Email[]> | undefined;
+let cache: { version: number; emails: Promise<Email[]> } | undefined;
 
-/** All dummy emails, in email_id order. Read once per server instance. */
-export function loadDemoEmails(): Promise<Email[]> {
-  cache ??= (async () => {
-    const dir = path.join(DUMMY_DIR, "inbox");
-    const files = (await fs.readdir(dir)).filter((f) => f.endsWith(".json")).sort();
-    return Promise.all(
-      files.map(async (f) =>
-        adapt(JSON.parse(await fs.readFile(path.join(dir, f), "utf8")) as DummyEmail),
-      ),
-    );
-  })();
-  return cache;
+/**
+ * All demo emails, in email_id order. Read once per server instance, and again whenever an
+ * import changes the data under it (see `DemoSource.version`).
+ */
+export async function loadDemoEmails(): Promise<Email[]> {
+  const src = await demoSource();
+  if (!cache || cache.version !== src.version) {
+    cache = {
+      version: src.version,
+      emails: (async () => {
+        const files = await src.listInbox();
+        return Promise.all(
+          files.map(async (f) => adapt(JSON.parse(await src.readInbox(f)) as DummyEmail, src)),
+        );
+      })(),
+    };
+  }
+  return cache.emails;
 }
 
 /**

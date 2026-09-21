@@ -30,7 +30,7 @@ Scored against `sdoc_classifier/data/ground_truth.json`, the file the organisers
 | **Stage 2 — SI-vs-BL verdict** (status, review reason and defect fields), all 520 emails | **520 / 520** exactly right |
 | Same, on the 20 edge cases `email_501`–`email_520` (never trained on) | 20 / 20 |
 
-The dataset holds 454 `OK`, 46 `MISMATCH` and 20 `NEEDS_REVIEW` emails (five for each review reason). 45 of the 46 mismatches are found with exactly the right fields, all 20 review cases get the right reason, and all 454 `OK` emails are left alone.
+The dataset holds 454 `OK`, 46 `MISMATCH` and 20 `NEEDS_REVIEW` emails (five for each review reason). All 46 mismatches are found with exactly the right fields, all 20 review cases get the right reason, and all 454 `OK` emails are left alone.
 
 **How to read these numbers.** The models were built and tuned on this dataset, so they show that the system does what the brief asks on the data provided, not how it will do on unseen mail. Section [Limitations](#limitations) says where it is weaker, and the [Classification on real mail](#classification-on-real-mail) note explains why a personal inbox does worse.
 
@@ -63,7 +63,9 @@ for email_id, want in truth.items():
 print(f"{len(truth)} emails:", right)
 ```
 
-It prints the `email_499` miss and `520 emails: {..., 'all four': 519}`. The category half alone can also be run with `python -m src.predict` and `python -m src.evaluate` in `sdoc_classifier/` (see its [README](sdoc_classifier/README.md)).
+It prints `520 emails: {'category': 520, 'status': 520, 'review_reason': 520, 'defect_fields': 520, 'all four': 520}` and no misses. The category half alone can also be run with `python -m src.predict` and `python -m src.evaluate` in `sdoc_classifier/` (see its [README](sdoc_classifier/README.md)).
+
+**On Windows, clone after `.gitattributes` was added.** Without it Git rewrites line endings inside the sample PDFs, which shifts the byte offsets they index themselves by, and readable documents start reporting as "couldn't be read". An older clone can be repaired with `git rm --cached -r . && git reset --hard`.
 
 > **What the submission file contains.** `python -m src.predict` writes `out/submission.json` in the organisers' format (`category`, `status`, `review_reason`, `defect_fields`, `has_defect` per email), but it fills in only the **category**; the four comparison fields are left at their defaults. The comparison results come from the comparator and the gateway. No single command yet writes the two halves into one 520-entry file, which the script above does in memory for scoring.
 
@@ -79,13 +81,13 @@ It prints the `email_499` miss and `520 emails: {..., 'all four': 519}`. The cat
 
 With the seeded inbox, these emails show each outcome. Open the **BL Comparison** tab:
 
-| Email | What it shows |
-|---|---|
-| `email_004` | A real **mismatch**: the SI and BL disagree on consignee and notify party. The field table highlights both. |
-| `email_503` | **Needs review, wrong document type**: a certificate of origin was attached where the BL should be. |
-| `email_506` | **Needs review, missing attachment**: an SI but no BL. |
-| `email_513` | **Needs review, unreadable**: both PDFs are scans with no text layer. |
-| `email_516` | **Needs review, missing value**: the SI's gross weight is blank. |
+| Email         | What it shows                                                                                                    |
+| ------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `email_004` | A real**mismatch**: the SI and BL disagree on consignee and notify party. The field table highlights both. |
+| `email_503` | **Needs review, wrong document type**: a certificate of origin was attached where the BL should be.        |
+| `email_506` | **Needs review, missing attachment**: an SI but no BL.                                                     |
+| `email_513` | **Needs review, unreadable**: both PDFs are scans with no text layer.                                      |
+| `email_516` | **Needs review, missing value**: the SI's gross weight is blank.                                           |
 
 Try **Resolve** on a mismatch, the **Match / Mismatch / Draft BL / Needs review / Resolved** filters above the list, and **Reply**, which opens Gmail's compose window with an optional AI-written draft.
 
@@ -109,13 +111,13 @@ Try **Resolve** on a mismatch, the **Match / Mismatch / Draft BL / Needs review 
                                             └── sdoc_comparator/   SI + BL → OK / MISMATCH / NEEDS_REVIEW
 ```
 
-| Part | What it does | Docs |
-|---|---|---|
-| `src/` | The website: dashboard, Gmail source, replies, notifications | this file |
-| `sdoc_classifier/` | Email category model: TF-IDF and engineered flags into a balanced logistic regression, plus one rule (an SI + BL attachment pair means BL Comparison) | [README](sdoc_classifier/README.md), [WORKFLOW](sdoc_classifier/WORKFLOW.md) |
-| `sdoc_comparator/` | SI-vs-BL comparison: a small label classifier finds each field, then plain, explainable rules compare seven fields | [README](sdoc_comparator/README.md), [WORKFLOW](sdoc_comparator/WORKFLOW.md) |
-| `backend/` | FastAPI gateway that serves both models to the website | [LOCAL.md](LOCAL.md#the-gateway-api) |
-| `PLANWORKCOMBINE.md` | How the three branches were merged (history, not a guide) | |
+| Part                   | What it does                                                                                                                                          | Docs                                                                       |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
+| `src/`               | The website: dashboard, Gmail source, replies, notifications                                                                                          | this file                                                                  |
+| `sdoc_classifier/`   | Email category model: TF-IDF and engineered flags into a balanced logistic regression, plus one rule (an SI + BL attachment pair means BL Comparison) | [README](sdoc_classifier/README.md), [WORKFLOW](sdoc_classifier/WORKFLOW.md) |
+| `sdoc_comparator/`   | SI-vs-BL comparison: a small label classifier finds each field, then plain, explainable rules compare seven fields                                    | [README](sdoc_comparator/README.md), [WORKFLOW](sdoc_comparator/WORKFLOW.md) |
+| `backend/`           | FastAPI gateway that serves both models to the website                                                                                                | [LOCAL.md](LOCAL.md#the-gateway-api)                                        |
+| `PLANWORKCOMBINE.md` | How the three branches were merged (history, not a guide)                                                                                             |                                                                            |
 
 Machine learning is used where it helps and nowhere else: the classifier sorts mail, and the comparator uses a model only to decide which field a raw label means ("Load Port" and "POL" are both the port of loading). Every verdict comes from readable code, so a reviewer can see why a pair was flagged.
 
@@ -192,12 +194,13 @@ The confidence gate in the pipeline above keeps that from becoming confidently w
 
 ## Documentation
 
-| Document | For |
-|---|---|
-| [LOCAL.md](LOCAL.md) | Running it on your machine: setup, env vars, the gateway API, troubleshooting |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Production: Google Cloud, Vercel, hosting the gateway on Railway |
-| [sdoc_classifier/README.md](sdoc_classifier/README.md) | The email category model |
-| [sdoc_comparator/README.md](sdoc_comparator/README.md) | The SI-vs-BL comparator |
-| `PLANWORKCOMBINE.md` | How the three branches were merged (history, not a guide) |
+| Document                                              | For                                                                           |
+| ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| [LOCAL.md](LOCAL.md)                                   | Running it on your machine: setup, env vars, the gateway API, troubleshooting |
+| [DEPLOYMENT.md](DEPLOYMENT.md)                         | Production: Google Cloud, Vercel, hosting the gateway on Railway              |
+| [IMPORT.md](IMPORT.md)                                 | Replacing the demo's sample inbox with your own data                          |
+| [sdoc_classifier/README.md](sdoc_classifier/README.md) | The email category model                                                      |
+| [sdoc_comparator/README.md](sdoc_comparator/README.md) | The SI-vs-BL comparator                                                       |
+| `PLANWORKCOMBINE.md`                                | How the three branches were merged (history, not a guide)                     |
 
 Contributors: this is not the Next.js of older tutorials. `AGENTS.md` says to read the guide in `node_modules/next/dist/docs/` (after `npm install`) before writing code.

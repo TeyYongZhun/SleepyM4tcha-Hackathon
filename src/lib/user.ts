@@ -11,5 +11,6 @@ export async function getUserInfo(): Promise<UserInfo | null> {
     name: session.user.name ?? null,
     email: session.user.email ?? null,
     image: session.user.image ?? null,
+    demo: session.demo === true,
   };
 }

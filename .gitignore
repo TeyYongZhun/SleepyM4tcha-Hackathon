@@ -37,6 +37,10 @@ yarn-error.log*
 # vercel
 .vercel
 
+# Sample data imported through the demo account's Import button. Whatever is here
+# replaces public/dummy for that account; it is one machine's data, not the project's.
+/public/import
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
