@@ -203,18 +203,17 @@ export async function clearImport(): Promise<void> {
     // taking only the first page left the rest behind -- the manifest, which sorts last, among
     // them, so "back to the sample" quietly did nothing.
     //
-    // By pathname, not by URL. A URL names the store it was written to, so anything left behind
-    // by a store that has since been replaced is refused as someone else's resource, and from
-    // then on nothing can ever be cleared. A pathname resolves against whichever store the
-    // token owns.
-    const paths: string[] = [];
+    // By URL. `del` passes whatever it is given straight to the API as `urls`, without the
+    // pathname handling `get` has, so a bare pathname is rejected and the delete throws --
+    // taking Import down with Clear, since both start by emptying what is there.
+    const urls: string[] = [];
     let cursor: string | undefined;
     do {
       const page = await list({ prefix: BLOB_PREFIX, cursor, limit: 1000 });
-      paths.push(...page.blobs.map((b) => b.pathname));
+      urls.push(...page.blobs.map((b) => b.url));
       cursor = page.hasMore ? page.cursor : undefined;
     } while (cursor);
-    for (let i = 0; i < paths.length; i += 500) await del(paths.slice(i, i + 500));
+    for (let i = 0; i < urls.length; i += 500) await del(urls.slice(i, i + 500));
   } else {
     await fs.rm(IMPORT_DIR, { recursive: true, force: true });
   }
