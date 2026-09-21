@@ -238,6 +238,10 @@ export async function readAttachmentBytes(m: ImportManifest, name: string): Prom
  *
  * It pages: the store lists 1,000 at a time, and taking only the first page left the rest
  * behind -- the manifest among them, so "back to the sample" quietly did nothing.
+ *
+ * By URL. `del` passes whatever it is given straight to the API as `urls`, without the
+ * pathname handling `get` has, so a bare pathname is rejected and the delete throws --
+ * taking Import down with Clear, since both start by emptying what is there.
  */
 async function removeBlobs(keep?: number): Promise<void> {
   const keptFolder = keep === undefined ? null : `${BLOB_PREFIX}/${keep}/`;
