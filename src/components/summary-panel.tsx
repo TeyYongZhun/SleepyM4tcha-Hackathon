@@ -1,5 +1,7 @@
 import { Bell, FileText, Receipt, ShieldAlert, type LucideIcon } from "lucide-react";
 import { getCategoryByEmailCategory } from "@/lib/categories";
+import { extractReferences } from "@/lib/demo/classify";
+import { bodyText } from "@/lib/text";
 import type { Email, EmailCategory } from "@/lib/types";
 import { REVIEW_REASON_TEXT } from "@/lib/shipment";
 import { ResolveButton, StatusBox } from "./resolve-status";
@@ -24,6 +26,14 @@ export function SummaryPanel({ email }: { email: Email }) {
   const meta = getCategoryByEmailCategory(email.category);
   const Icon = CATEGORY_ICON[email.category];
   const confidence = s?.confidence !== undefined ? Math.round(s.confidence * 100) : undefined;
+  // Read from the email itself rather than from whatever the source put in summary.fields,
+  // so every category and every source (demo, Gmail, backend) shows the same two rows.
+  const refs = extractReferences(`${email.subject}
+${bodyText(email.body, email.body_type)}`);
+  const references = [
+    { label: "Booking", value: refs.booking },
+    { label: "Carrier ref", value: refs.carrierRef },
+  ];
 
   return (
     <aside className="space-y-6 px-[22px] py-[26px]">
@@ -96,16 +106,16 @@ export function SummaryPanel({ email }: { email: Email }) {
           <p className="text-[13px] text-ink-soft">No summary available for this email yet.</p>
         ) : (
           <div className="space-y-5">
-            {s.fields && s.fields.length > 0 && (
-              <dl className="space-y-[9px]">
-                {s.fields.map((f) => (
-                  <div key={f.label} className="flex justify-between gap-3 text-[12.5px]">
-                    <dt className="text-ink-soft">{f.label}</dt>
-                    <dd className="text-right font-semibold break-words">{f.value}</dd>
-                  </div>
-                ))}
-              </dl>
-            )}
+            <dl className="space-y-[9px]">
+              {references.map((f) => (
+                <div key={f.label} className="flex justify-between gap-3 text-[12.5px]">
+                  <dt className="text-ink-soft">{f.label}</dt>
+                  <dd className="text-right font-semibold break-words">
+                    {f.value ?? <span className="font-normal text-ink-soft/60">–</span>}
+                  </dd>
+                </div>
+              ))}
+            </dl>
 
             <div className="rounded-[10px] border border-line bg-surface px-3.5 py-[13px]">
               <p className={`${LABEL} mb-[7px]`}>TL;DR</p>

@@ -99,27 +99,30 @@ const HEADLINE: Record<EmailCategory, string> = {
   general: "General notice",
 };
 
-/** Cheap regex extraction of the fields that matter for shipment emails. */
+/**
+ * The two references the AI summary shows for every email, whichever category it is in:
+ * the booking (OC) number, e.g. 5RSG-19787, and the carrier reference, e.g. EGLV433335384951.
+ * Read from plain text (an HTML body has to be turned into text first).
+ */
+export function extractReferences(text: string): { booking?: string; carrierRef?: string } {
+  return {
+    booking: text.match(/\b5[A-Z]{3}-\d{5}\b/)?.[0],
+    carrierRef: text.match(/\b[A-Z]{4}[A-Z0-9]{0,4}\d{6,}\b/)?.[0],
+  };
+}
+
+/** Category-independent summary: headline, first sentences, and the two references. */
 export function buildDemoSummary(
   e: { subject: string; body: string },
   category: EmailCategory,
   reason: string,
-  attachmentCount: number,
   confidence: number,
 ): EmailSummary {
-  const text = `${e.subject}\n${e.body}`;
+  const refs = extractReferences(`${e.subject}
+${e.body}`);
   const fields: { label: string; value: string }[] = [];
-  const add = (label: string, value?: string) => {
-    if (value) fields.push({ label, value: value.trim() });
-  };
-
-  add("Booking", text.match(/\b5[A-Z]{3}-\d{5}\b/)?.[0]);
-  add("Carrier ref", text.match(/\b[A-Z]{4}[A-Z0-9]{0,4}\d{6,}\b/)?.[0]);
-  add("Invoice", text.match(/\binvoice\s+(\d{6,})/i)?.[1]);
-  add("Vessel", text.match(/\b(?:V\.|voyage\s)([A-Z0-9]{4,})/i)?.[1]);
-  add("POL", e.body.match(/POL:\s*(.+?)\s+POD:/)?.[1]);
-  add("POD", e.body.match(/POD:\s*(.+?)(?:\s+Shipper:|\s*$|\n)/)?.[1]);
-  if (attachmentCount) add("Attachments", String(attachmentCount));
+  if (refs.booking) fields.push({ label: "Booking", value: refs.booking });
+  if (refs.carrierRef) fields.push({ label: "Carrier ref", value: refs.carrierRef });
 
   // First real sentence(s), skipping the greeting line
   const body = e.body
