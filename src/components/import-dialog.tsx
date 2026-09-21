@@ -13,6 +13,8 @@ import { FileArchive, Loader2, Upload, X } from "lucide-react";
 
 interface Status {
   imported: boolean;
+  /** Emptied on purpose (Clear data) */
+  cleared?: boolean;
   emails: number;
 }
 
@@ -205,7 +207,7 @@ function Dialog({ onClose }: { onClose: () => void }) {
         )}
 
         <div className="mt-5 flex items-center gap-2 border-t border-line pt-4">
-          {status?.imported && (
+          {(status?.imported || status?.cleared) && (
             <button
               type="button"
               onClick={reset}

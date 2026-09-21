@@ -24,6 +24,8 @@ export const DUMMY_DIR = path.join(process.cwd(), "public", "dummy");
 
 export interface DemoSource {
   imported: boolean;
+  /** Cleared on purpose: the inbox has no emails, and it is not the bundled sample either. */
+  empty: boolean;
   /**
    * Cache key for everything derived from this data. 0 is the bundled sample; an import
    * uses its manifest version, which every instance sees, not just the one that wrote it.
@@ -44,6 +46,7 @@ export interface DemoSource {
 function bundled(): DemoSource {
   return {
     imported: false,
+    empty: false,
     version: 0,
     urlBase: "/dummy",
     listInbox: async () =>
@@ -56,6 +59,7 @@ function bundled(): DemoSource {
 function imported(m: ImportManifest): DemoSource {
   return {
     imported: true,
+    empty: false,
     version: m.version,
     urlBase: "/api/import/file",
     listInbox: async () => Object.keys(m.inbox).sort(),
@@ -64,8 +68,26 @@ function imported(m: ImportManifest): DemoSource {
   };
 }
 
+/** Nothing in it. Its version is the manifest's, so caches of the previous inbox rebuild. */
+function cleared(m: ImportManifest): DemoSource {
+  return {
+    imported: true,
+    empty: true,
+    version: m.version,
+    urlBase: "/api/import/file",
+    listInbox: async () => [],
+    readInbox: async (name) => {
+      throw new Error(`The inbox is empty: no ${name}`);
+    },
+    readAttachment: async (rel) => {
+      throw new Error(`The inbox is empty: no ${rel}`);
+    },
+  };
+}
+
 export async function demoSource(): Promise<DemoSource> {
   const m = await readManifest();
+  if (m?.empty) return cleared(m);
   // An import with no emails in it is not something to show; keep the sample instead
   return m && Object.keys(m.inbox).length > 0 ? imported(m) : bundled();
 }

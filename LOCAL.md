@@ -176,8 +176,9 @@ there is no Sent mail to check.
 
 The demo account's menu has **Import data**: two zips, one of inbox `.json` records
 and one of the attachments they name. Whatever is imported replaces the bundled
-sample entirely, and **Reset to sample data** puts the 520 emails back. Locally the
-files land in `public/import/` (git-ignored).
+sample entirely, and **Reset to sample data** puts the 520 emails back. Under it,
+**Clear data** empties the inbox and **Try demo data** brings the 520 back in one click. Locally
+the files land in `public/import/` (git-ignored).
 
 Full details — zip layout, the record shape, storage on a deployed app, and the API —
 are in [IMPORT.md](IMPORT.md).

@@ -257,7 +257,11 @@ export function InboxPane({
       >
         {shown.length === 0 && (
           <p className="px-5 py-10 text-center text-[13.5px] text-ink-soft">
-            {filterHere ? "No messages in this filter on this page." : "No messages in this filter."}
+            {view.total === 0
+              ? "The inbox is empty."
+              : filterHere
+                ? "No messages in this filter on this page."
+                : "No messages in this filter."}
           </p>
         )}
         {shown.map((row) => {

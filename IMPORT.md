@@ -17,6 +17,19 @@ merged, so the demo then shows exactly what you imported and nothing else.
 **Reset to sample data**, in the same panel, throws the import away and brings the 520
 emails back. It only appears when there is an import to remove.
 
+Two more rows sit under **Import data** in the account menu:
+
+- **Clear data** empties the inbox: no emails at all, neither an import nor the sample, until
+  something is imported or the sample is brought back. It asks first, since it throws the
+  current data away.
+- **Try demo data** brings the bundled 520-email sample back in one click (the same as Reset,
+  without opening the panel). It also undoes a Clear.
+
+Both are kept exactly the way an import is (`public/import/` locally, Vercel Blob when a
+store is attached), so they work wherever Import does. On a deployed app with no Blob store
+Clear reports that it has nowhere to write, as Import does; Try demo data still works, since
+there is nothing stored to remove.
+
 ## Where the files go
 
 This is the part worth understanding, because it is not the same in both places.
@@ -115,11 +128,23 @@ through the store on request. Two reasons:
 demo account until someone presses Reset. If two people are on the deployed site at once
 and one imports, the other sees the new inbox too.
 
+**Try the demo starts on the sample.** Pressing **Try the demo** on the landing or sign-in page
+first puts the bundled 520 emails back, so a new visitor never arrives at an inbox that the last
+one imported or cleared. Because the setting is shared, that also resets it for anyone already
+in the demo (they see the sample within ten seconds, or on their next click). If the store
+cannot be reached the demo still opens, on whatever it was last showing.
+
 **Other instances take a few seconds to notice.** A deployed app runs as several instances
 that cannot tell each other anything, so each one spots an import by reading a
 `manifest.json` version it has not seen before. That manifest is re-read at most every ten
 seconds, which keeps a network round trip out of every page render — so an import
 propagates everywhere within about ten seconds rather than instantly.
+
+**The person who made the change sees it at once, though.** Import, Clear and Try demo data
+each leave a short-lived cookie (`wayboxai-demo-data-changed`, the time of the change). An
+instance that receives a request carrying one, dated after its own read of the manifest,
+reads the store again, so the page you land on after pressing Clear is empty whichever
+instance serves it. Other visitors catch up within the ten seconds.
 
 **Both zips are read before anything is written**, so a broken attachments zip cannot leave
 the demo holding an inbox whose files never arrived.
@@ -130,9 +155,10 @@ Demo account only; everything else gets `403`, and signed-out gets `401`.
 
 | Request | Does |
 | --- | --- |
-| `GET /api/import` | `{ imported, emails, storage }` — what is being shown now |
+| `GET /api/import` | `{ imported, cleared, emails, storage }` — what is being shown now (`cleared`: emptied on purpose) |
 | `POST /api/import` | multipart with `inbox` and `attachments` zips; replaces the sample |
-| `DELETE /api/import` | removes the import, back to the bundled sample |
+| `PUT /api/import` | empties the inbox (Clear data): a manifest with `empty: true` and no emails |
+| `DELETE /api/import` | removes the import or the clear, back to the bundled sample |
 | `GET /api/import/file/attachments/:name` | one imported attachment |
 
 A successful import returns how much was taken:

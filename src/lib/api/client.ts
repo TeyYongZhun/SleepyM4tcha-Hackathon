@@ -40,7 +40,7 @@ export async function request<Args extends unknown[], Data>(
         Authorization: `Bearer ${session?.accessToken ?? ""}`,
       },
       cache: "no-store",
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(route.timeoutMs ?? TIMEOUT_MS),
     });
   } catch (e) {
     throw new Error(`Could not reach the backend for ${route.method} ${path}: ${(e as Error).message}`);

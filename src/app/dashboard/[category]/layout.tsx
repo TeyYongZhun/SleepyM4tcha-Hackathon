@@ -24,9 +24,11 @@ export default async function CategoryLayout({
 
   return (
     <div className="flex h-full min-h-0">
-      {/* key: a different tab is a different list, so start it fresh on page 1 */}
+      {/* key: a different tab is a different list, so start it fresh on page 1. The demo's data
+          version is in it too: importing, clearing or bringing the sample back replaces every
+          email, and the list must not carry on showing the old ones. */}
       <InboxPane
-        key={meta.slug}
+        key={`${meta.slug}:${first.version ?? 0}`}
         slug={meta.slug}
         title={meta.slug === "all" ? "Inbox" : meta.label}
         initial={{

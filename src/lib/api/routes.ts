@@ -1,5 +1,6 @@
 import "server-only";
 import type { Email } from "../types";
+import type { Submission } from "../submission";
 import { adaptEmail, adaptEmailList } from "./adapters";
 
 /**
@@ -28,6 +29,8 @@ export interface ApiRoute<Args extends unknown[], Data> {
   path: (...args: Args) => string;
   /** Maps the parsed JSON response to the frontend type */
   adapt: (raw: unknown) => Data;
+  /** For a call that legitimately takes longer than the usual 15s */
+  timeoutMs?: number;
 }
 
 /** Only for type inference: keeps `request(routes.x, ...)` fully typed. */
@@ -48,6 +51,22 @@ export const routes = {
     method: "GET",
     path: (emailId) => `/emails/${encodeURIComponent(emailId)}`,
     adapt: adaptEmail,
+  }),
+
+  /**
+   * Every email's category and SI-vs-BL verdict, in the shape of ground_truth.json. The
+   * gateway compares every BL pair the first time it is asked, so it gets longer than a list.
+   */
+  submission: defineRoute<[], Submission>({
+    method: "GET",
+    path: () => "/submission",
+    timeoutMs: 120_000,
+    adapt: (raw) => {
+      if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+        throw new Error("The backend's /submission is not an object keyed by email id");
+      }
+      return raw as Submission;
+    },
   }),
 
   // Example of adding more later:
