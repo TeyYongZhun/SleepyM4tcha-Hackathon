@@ -1,10 +1,10 @@
 "use client";
 
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { ChevronDown } from "lucide-react";
-import { CATEGORIES, type CategorySlug } from "@/lib/categories";
+import { CATEGORIES, type CategorySlug, type InboxCounts } from "@/lib/categories";
 import { useDetailsDismiss } from "@/lib/use-details-dismiss";
 import { Avatar } from "./avatar";
 import { Logo } from "./logo";
@@ -12,14 +12,51 @@ import { NotificationBell } from "./notification-bell";
 import { ThemeToggle } from "./theme-toggle";
 import { useUserInfo } from "./user-provider";
 
+/**
+ * A Gmail inbox is counted in the background, so the totals arrive in stages: ask, show
+ * what's there, and ask again a couple of seconds later until it says it is finished. After
+ * that it only checks back once a minute (the server recounts on its own schedule).
+ */
+function useLiveCounts(enabled: boolean): InboxCounts | null {
+  const [snap, setSnap] = useState<InboxCounts | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const tick = async () => {
+      let done = false;
+      try {
+        const res = await fetch("/api/inbox/counts", { cache: "no-store" });
+        if (res.ok && res.status !== 204) {
+          const next = (await res.json()) as InboxCounts;
+          if (!alive) return;
+          setSnap(next);
+          done = next.done;
+        }
+      } catch {} // offline or restarting: try again on the next tick
+      if (alive) timer = setTimeout(tick, done ? 60_000 : 2_000);
+    };
+    tick();
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [enabled]);
+  return snap;
+}
+
 export function Navbar({
   counts,
+  liveCounts = false,
   signOutSlot,
 }: {
-  /** Omitted when the source is paged (Gmail): full counts per category aren't known */
+  /** Exact totals per category, when the source holds everything already (not Gmail) */
   counts?: Record<CategorySlug, number>;
+  /** Gmail: count the inbox in the background and show the totals as they come in */
+  liveCounts?: boolean;
   signOutSlot: React.ReactNode;
 }) {
+  const live = useLiveCounts(liveCounts);
   const user_info = useUserInfo();
   const active = useSelectedLayoutSegment() ?? "all";
   const displayName = user_info.name ?? user_info.email ?? "Account";
@@ -50,9 +87,14 @@ export function Navbar({
                 }`}
               >
                 {c.label}
-                {counts && (
-                  <span className="text-[11.5px] font-semibold tabular-nums opacity-75">
-                    {counts[c.slug]}
+                {(counts ?? live?.counts) && (
+                  <span
+                    className={`text-[11.5px] font-semibold tabular-nums opacity-75 ${
+                      live && !live.done ? "animate-pulse" : ""
+                    }`}
+                  >
+                    {(counts ?? live!.counts)[c.slug]}
+                    {live?.capped && "+"}
                   </span>
                 )}
               </Link>

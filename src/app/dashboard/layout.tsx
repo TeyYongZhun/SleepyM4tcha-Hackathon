@@ -15,14 +15,16 @@ export default async function DashboardLayout({
   // Also bounce if Google refresh failed: the user must sign in again
   if (!user_info || session?.error === "RefreshTokenError") redirect("/login");
 
-  // Gmail is paged, so totals per category aren't known: show no counts there
-  const counts = (await usesGmail()) ? undefined : countByCategory(await getEmails());
+  // Gmail is paged, so totals per category aren't known up front: the navbar counts them in
+  // the background and fills the numbers in. Every other source is in memory already.
+  const gmail = await usesGmail();
+  const counts = gmail ? undefined : countByCategory(await getEmails());
 
   return (
     <UserProvider user_info={user_info}>
       {/* The shell is exactly one screen tall; only the panes inside scroll, never the page */}
       <div className="flex h-dvh flex-col overflow-hidden bg-paper">
-        <Navbar counts={counts} signOutSlot={<SignOutButton />} />
+        <Navbar counts={counts} liveCounts={gmail} signOutSlot={<SignOutButton />} />
         <main className="min-h-0 flex-1">{children}</main>
         {/* Once for the whole dashboard: it announces whatever lands in the notification
             store, and stays put while you move between emails */}

@@ -2,11 +2,16 @@ import "server-only";
 import { cache } from "react";
 import { auth } from "@/auth";
 import type { CategorySlug } from "./categories";
-import { CATEGORIES, getCategoryBySlug } from "./categories";
+import { CATEGORIES, getCategoryBySlug, type InboxCounts } from "./categories";
 import { ApiError, backendEnabled, request } from "./api/client";
 import { routes } from "./api/routes";
 import { loadDemoEmail, loadDemoEmails } from "./demo/load";
-import { getInboxPage as getGmailPage, getMessage, type InboxPage } from "./gmail";
+import {
+  getInboxCounts as getGmailCounts,
+  getInboxPage as getGmailPage,
+  getMessage,
+  type InboxPage,
+} from "./gmail";
 import { withShipmentAnalysis } from "./gmail/attachments";
 import type { InboxRow } from "@/components/inbox-pane";
 import { displayName } from "./format";
@@ -140,6 +145,26 @@ async function loadEmail(emailId: string): Promise<Email | undefined> {
 export function filterEmails(emails: Email[], slug: CategorySlug): Email[] {
   const category = getCategoryBySlug(slug)?.category;
   return category ? emails.filter((e) => e.category === category) : emails;
+}
+
+/**
+ * Tab totals for a Gmail inbox, counted in the background (see lib/gmail). Returns whatever
+ * has been counted so far; the tab bar asks again until `done`. Null when the account
+ * isn't a Gmail one (those get exact counts up front from countByCategory).
+ */
+export async function getLiveCounts(): Promise<InboxCounts | null> {
+  if (!(await usesGmail())) return null;
+  const session = await auth();
+  const snap = getGmailCounts(session!.accessToken!, session!.user.id);
+  const counts = {} as Record<CategorySlug, number>;
+  let all = 0;
+  for (const { slug, category } of CATEGORIES) {
+    if (!category) continue;
+    counts[slug] = snap?.counts[category] ?? 0;
+    all += counts[slug];
+  }
+  counts.all = all;
+  return { counts, done: snap?.done ?? false, capped: snap?.capped ?? false };
 }
 
 /** Derived from CATEGORIES, so adding a category needs no change here. */
