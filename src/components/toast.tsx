@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { Loader2, X } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   latestNotificationId,
   useNotifications,
@@ -11,7 +11,7 @@ import {
 import { NOTIFICATION } from "./notification-view";
 
 /** How long a settled toast stays up, in seconds, while this tab is being looked at. */
-const DISMISS_AFTER = 6;
+const DISMISS_AFTER = 3;
 
 /**
  * Shows the newest notification as a bubble in the top corner. Mounted once for the whole
@@ -28,30 +28,39 @@ export function ToastHost() {
 
   const latest = items[0];
   if (!latest || latest.id === seen) return null;
-  return <Toast item={latest} onDismiss={() => setSeen(latest.id)} />;
+  // Keyed on pending too, so when a reply settles the toast restarts with a full countdown
+  // rather than inheriting whatever was left of one that never ran.
+  return (
+    <Toast
+      key={`${latest.id}:${latest.pending ? "waiting" : "settled"}`}
+      item={latest}
+      onDismiss={() => setSeen(latest.id)}
+    />
+  );
 }
 
 /**
- * It clears itself after a few seconds, but only counts down while this tab is actually on
- * screen -- a reply's result usually lands while the person is still over in Gmail, and a
- * toast that expired there would never be seen. A bounce stays until dismissed, because it is
- * the one outcome that needs them to do something.
+ * Closes itself a few seconds after it has finished saying what it has to say -- a reply still
+ * waiting on delivery holds, and only starts counting once it settles. The count runs only
+ * while this tab is actually on screen: a reply's result usually lands while the person is
+ * still over in Gmail, and a toast that expired there would never be seen. Whatever it said is
+ * kept in the notifications bell either way.
  */
 function Toast({ item, onDismiss }: { item: Notification; onDismiss: () => void }) {
   const { kind, subject, pending } = item;
+  const [left, setLeft] = useState(DISMISS_AFTER);
 
   useEffect(() => {
-    if (pending || kind === "bounced") return;
-    let left = DISMISS_AFTER;
+    if (pending) return;
     const id = setInterval(() => {
-      if (document.hidden) return;
-      if (--left <= 0) {
-        clearInterval(id);
-        onDismiss();
-      }
+      if (!document.hidden) setLeft((n) => Math.max(0, n - 1));
     }, 1000);
     return () => clearInterval(id);
-  }, [pending, kind, onDismiss]);
+  }, [pending]);
+
+  useEffect(() => {
+    if (!pending && left <= 0) onDismiss();
+  }, [pending, left, onDismiss]);
 
   const v = NOTIFICATION[kind];
   const Icon = v.icon;
@@ -62,34 +71,40 @@ function Toast({ item, onDismiss }: { item: Notification; onDismiss: () => void 
       <div
         role="status"
         aria-live="polite"
-        className="toast-in pointer-events-auto flex w-full max-w-[340px] items-start gap-2.5 rounded-xl border border-line bg-overlay p-3.5 shadow-lg"
+        className="toast-in pointer-events-auto w-full max-w-[340px] overflow-hidden rounded-xl border border-line bg-overlay shadow-lg"
       >
-        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${v.tone}`}>
-          <Icon size={16} aria-hidden />
-        </span>
+        <div className="flex items-start gap-2.5 p-3.5">
+          <span
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${v.tone}`}
+          >
+            <Icon size={16} aria-hidden />
+          </span>
 
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-semibold">{v.title}</p>
-          <p className="mt-0.5 text-[12px] leading-relaxed break-words text-ink-soft">
-            {v.text(subject)}
-          </p>
-          {/* Only a sent reply is ever pending, while we watch for it coming back undelivered */}
-          {pending && (
-            <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-soft">
-              <Loader2 size={12} className="animate-spin" aria-hidden />
-              Confirming it reached the recipient…
+          <div className="min-w-0 flex-1">
+            <p className="text-[13px] font-semibold">{v.title}</p>
+            <p className="mt-0.5 text-[12px] leading-relaxed break-words text-ink-soft">
+              {v.text(subject)}
             </p>
-          )}
+            {/* Only a sent reply is ever pending, while we watch for it coming back undelivered */}
+            {pending && (
+              <p className="mt-1.5 flex items-center gap-1.5 text-[11.5px] text-ink-soft">
+                <Loader2 size={12} className="animate-spin" aria-hidden />
+                Confirming it reached the recipient…
+              </p>
+            )}
+          </div>
         </div>
 
-        <button
-          type="button"
-          onClick={onDismiss}
-          aria-label="Dismiss"
-          className="-m-1 shrink-0 rounded-md p-1 text-ink-soft transition hover:bg-paper-2 hover:text-ink"
-        >
-          <X size={14} aria-hidden />
-        </button>
+        {/* The countdown, drawn rather than written: width, not an animation, so it pauses
+            with the count when the tab is hidden. Nothing to show while it is still waiting. */}
+        {!pending && (
+          <div aria-hidden className="h-[3px] bg-line/40">
+            <div
+              className={`h-full transition-[width] duration-1000 ease-linear ${v.bar}`}
+              style={{ width: `${(left / DISMISS_AFTER) * 100}%` }}
+            />
+          </div>
+        )}
       </div>
     </div>,
     document.body,

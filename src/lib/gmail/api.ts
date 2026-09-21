@@ -81,9 +81,13 @@ async function gmailFetch<T>(
     const retryAfter = Number(res.headers.get("retry-after")) * 1000;
     if (quota && attempt < QUOTA_BACKOFF_MS.length) {
       const delay = retryAfter > 0 ? retryAfter : QUOTA_BACKOFF_MS[attempt];
-      // All workers hit the wall together; pause and log once, not per request
+      // All workers hit the wall together; pause and log once, not per request. Naming the
+      // path and Gmail's own wording matters: "quota" covers both the per-minute budget and
+      // the per-second rate, and which one it is says whether something is asking too often.
       if (Date.now() + delay > pausedUntil + 1000) {
-        console.warn(`[gmail] quota reached; pausing ${Math.round(delay / 1000)}s`);
+        console.warn(
+          `[gmail] rate limited on ${method} ${path} (${res.status}); pausing ${Math.round(delay / 1000)}s -- ${message}`,
+        );
       }
       pausedUntil = Math.max(pausedUntil, Date.now() + delay);
       continue;
