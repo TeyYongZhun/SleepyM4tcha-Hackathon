@@ -13,6 +13,7 @@ import {
   type InboxPage,
 } from "./gmail";
 import { withShipmentAnalysis } from "./gmail/attachments";
+import { wasOpened } from "./gmail/read-memory";
 import type { InboxRow } from "@/components/inbox-pane";
 import { displayName } from "./format";
 import { PAGE_SIZE } from "./paging";
@@ -62,8 +63,12 @@ export async function getInboxPage(
     // exists once the attachments have been read -- so the list has to do it too,
     // not just the opened email. Messages without attachments cost nothing and
     // the rest are cached, so opening one of these rows is then free.
+    const userKey = session!.user.id;
     const emails = await Promise.all(gmail.emails.map((e) => withShipmentAnalysis(token, e)));
-    return { ...gmail, emails, filtered: false };
+    // Gmail may still say unread (it is only told once the app has permission to change
+    // mail); whatever has been opened here stays read regardless.
+    const opened = emails.map((e) => (e.unread && wasOpened(userKey, e.email_id) ? { ...e, unread: false } : e));
+    return { ...gmail, emails: opened, filtered: false };
   }
 
   const all = filterEmails(await getEmails(), slug);

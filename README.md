@@ -154,7 +154,7 @@ There is also `GMAIL_API_URL`, which points the Gmail source at a fake server fo
 ## Setting up Google sign-in
 
 1. In [Google Cloud Console](https://console.cloud.google.com) create a project and enable the **Gmail API**.
-2. **OAuth consent screen**: user type External. Add the scope `.../auth/gmail.readonly`.
+2. **OAuth consent screen**: user type External. Add the scope `.../auth/gmail.modify` (read access, plus the one change the app makes: clearing the *unread* mark on an email you open).
    While the app is in *Testing* status, add every Google account that will sign in under **Test users**, otherwise Google shows "access blocked".
 3. **Credentials > Create credentials > OAuth client ID > Web application.** Add these authorised redirect URIs:
    - `http://localhost:3000/api/auth/callback/google`
@@ -237,7 +237,7 @@ Inside the website:
 | `src/app/dashboard/[category]/layout.tsx` | Dashboard for a filter, with the persistent inbox list (left pane)                     |
 | `src/app/dashboard/[category]/[emailId]/` | Email (middle pane) and summary (right pane)                                           |
 | `src/app/globals.css`                     | Design tokens (colours, fonts) with light and dark values                              |
-| `src/auth.ts`                             | Auth.js: Google (Gmail read-only scope, token refresh) and the demo login              |
+| `src/auth.ts`                             | Auth.js: Google (Gmail scope, token refresh) and the demo login              |
 | `src/lib/api/`                            | Backend routing:`routes.ts`, `adapters.ts`, `client.ts`                          |
 | `src/lib/emails.ts`                       | Chooses the source: demo inbox, backend (if`BACKEND_API_URL` is set), Gmail, or mock |
 | `src/lib/gmail/`                          | Gmail source: load the whole inbox, parse messages, fetch one attachment               |
@@ -272,7 +272,7 @@ Inside the website:
 | Inbox shows the 520 sample emails, not your real mail | `BACKEND_API_URL` is set. Blank it and restart to read Gmail                 |
 | Categories look wrong / everything is General | The ML service isn't running, so it fell back to keyword rules. Start terminal 2   |
 | No SI/BL comparison on a Gmail email      | Needs exactly one SI **and** one BL attachment, and `CLASSIFIER_API_URL` set          |
-| `403 insufficient authentication scopes` | Gmail API not enabled, or `gmail.readonly` missing from the consent screen, or Google reused an old grant — revoke it at myaccount.google.com/permissions and sign in again |
+| `403 insufficient authentication scopes` | Gmail API not enabled, or `gmail.modify` missing from the consent screen, or Google reused an old grant (an old sign-in only has read access, so opening an email can't clear its unread mark until you sign in again) — revoke it at myaccount.google.com/permissions and sign in again |
 
 **Freeing a stuck port** (PowerShell):
 
