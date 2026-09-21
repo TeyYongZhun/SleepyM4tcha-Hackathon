@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { cookies } from "next/headers";
 import { del, head, list, put } from "@vercel/blob";
+import JSZip from "jszip";
 
 /**
  * Where imported sample data is kept.
@@ -26,7 +27,16 @@ export interface ImportManifest {
    * would be indistinguishable from "nothing imported" and the bundled sample would come back.
    */
   empty?: boolean;
-  /** filename -> where to fetch it. Empty string means "read it from disk". */
+  /**
+   * Blob only. The import is kept as two files -- every inbox record in one JSON file, every
+   * attachment in one zip -- rather than one file per email and per attachment. A 700-email set
+   * was 1,237 uploads, one after another (minutes, on a real store, and past a serverless
+   * function's time limit), and as many downloads to read it back; it is now 2 and 2. `inbox`
+   * and `attachments` then just list the names, with "" for every value. An import made before
+   * this existed has no `bundle` and is still read file by file.
+   */
+  bundle?: { inbox: string; attachments: string };
+  /** filename -> where to fetch it. Empty string means "read it from disk" (or the bundle). */
   inbox: Record<string, string>;
   attachments: Record<string, string>;
 }
@@ -130,8 +140,46 @@ async function fetchBytes(url: string): Promise<Buffer> {
   return Buffer.from(await res.arrayBuffer());
 }
 
+type Bundle = { inbox: Map<string, string>; attachments: Map<string, Buffer> };
+
+// One download and unpack per instance and per import version, shared by every read: the
+// records and attachments of an import are then answered from memory.
+const bundles = ((globalThis as unknown as { __wayboxImportBundle?: { version?: number; ready?: Promise<Bundle> } })
+  .__wayboxImportBundle ??= {});
+
+function bundleOf(m: ImportManifest): Promise<Bundle> {
+  if (bundles.ready && bundles.version === m.version) return bundles.ready;
+  const ready = (async (): Promise<Bundle> => {
+    const [records, zipBytes] = await Promise.all([
+      fetchBytes(m.bundle!.inbox),
+      fetchBytes(m.bundle!.attachments),
+    ]);
+    const inbox = new Map(Object.entries(JSON.parse(records.toString("utf8")) as Record<string, string>));
+    const zip = await JSZip.loadAsync(zipBytes);
+    const attachments = new Map<string, Buffer>();
+    await Promise.all(
+      Object.values(zip.files)
+        .filter((f) => !f.dir)
+        .map(async (f) => attachments.set(f.name, Buffer.from(await f.async("arraybuffer")))),
+    );
+    return { inbox, attachments };
+  })();
+  bundles.version = m.version;
+  bundles.ready = ready;
+  // A failed download must not be remembered, or the demo would keep failing until the next import
+  ready.catch(() => {
+    if (bundles.ready === ready) bundles.ready = undefined;
+  });
+  return ready;
+}
+
 /** One imported email record, as JSON text. */
 export async function readInboxRecord(m: ImportManifest, name: string): Promise<string> {
+  if (m.bundle) {
+    const text = (await bundleOf(m)).inbox.get(name);
+    if (text === undefined) throw new Error(`No imported record ${name}`);
+    return text;
+  }
   const url = m.inbox[name];
   if (url) return (await fetchBytes(url)).toString("utf8");
   return fs.readFile(path.join(IMPORT_DIR, "inbox", name), "utf8");
@@ -139,6 +187,11 @@ export async function readInboxRecord(m: ImportManifest, name: string): Promise<
 
 /** One imported attachment, as bytes. */
 export async function readAttachmentBytes(m: ImportManifest, name: string): Promise<Buffer> {
+  if (m.bundle) {
+    const bytes = (await bundleOf(m)).attachments.get(name);
+    if (!bytes) throw new Error(`No imported attachment ${name}`);
+    return bytes;
+  }
   const url = m.attachments[name];
   if (url) return fetchBytes(url);
   return fs.readFile(path.join(IMPORT_DIR, "attachments", name));
@@ -146,8 +199,17 @@ export async function readAttachmentBytes(m: ImportManifest, name: string): Prom
 
 export async function clearImport(): Promise<void> {
   if (usingBlob()) {
-    const { blobs } = await list({ prefix: BLOB_PREFIX });
-    if (blobs.length) await del(blobs.map((b) => b.url));
+    // The store lists 1,000 at a time. An import made file by file is more than that, and
+    // taking only the first page left the rest behind -- the manifest, which sorts last, among
+    // them, so "back to the sample" quietly did nothing.
+    const urls: string[] = [];
+    let cursor: string | undefined;
+    do {
+      const page = await list({ prefix: BLOB_PREFIX, cursor, limit: 1000 });
+      urls.push(...page.blobs.map((b) => b.url));
+      cursor = page.hasMore ? page.cursor : undefined;
+    } while (cursor);
+    for (let i = 0; i < urls.length; i += 500) await del(urls.slice(i, i + 500));
   } else {
     await fs.rm(IMPORT_DIR, { recursive: true, force: true });
   }
@@ -163,18 +225,28 @@ export async function saveImport(
   const manifest: ImportManifest = { version: Date.now(), inbox: {}, attachments: {} };
 
   if (usingBlob()) {
-    const upload = async (folder: "inbox" | "attachments", f: SavedFile) => {
-      const { url } = await put(`${BLOB_PREFIX}/${folder}/${f.name}`, f.bytes, {
-        access: "public",
-        addRandomSuffix: false,
-        allowOverwrite: true,
-        contentType: f.contentType,
-      });
-      manifest[folder][f.name] = url;
-    };
-    // Sequential on purpose: a few hundred small uploads at once trips the store's rate limit
-    for (const f of inbox) await upload("inbox", f);
-    for (const f of attachments) await upload("attachments", f);
+    // Two uploads however big the import (see `ImportManifest.bundle`)
+    const records = JSON.stringify(Object.fromEntries(inbox.map((f) => [f.name, f.bytes.toString("utf8")])));
+    const zip = new JSZip();
+    for (const f of attachments) zip.file(f.name, f.bytes, { binary: true });
+    const zipped = await zip.generateAsync({ type: "nodebuffer", compression: "STORE" });
+
+    const upload = async (name: string, body: string | Buffer, contentType: string) =>
+      (
+        await put(`${BLOB_PREFIX}/${name}`, body, {
+          access: "public",
+          addRandomSuffix: false,
+          allowOverwrite: true,
+          contentType,
+        })
+      ).url;
+    const [inboxUrl, attachmentsUrl] = await Promise.all([
+      upload("inbox.json", records, "application/json"),
+      upload("attachments.zip", zipped, "application/zip"),
+    ]);
+    manifest.bundle = { inbox: inboxUrl, attachments: attachmentsUrl };
+    for (const f of inbox) manifest.inbox[f.name] = "";
+    for (const f of attachments) manifest.attachments[f.name] = "";
   } else {
     for (const [folder, files] of [
       ["inbox", inbox],

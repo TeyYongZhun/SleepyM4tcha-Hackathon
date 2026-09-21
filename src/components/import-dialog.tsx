@@ -127,7 +127,15 @@ function Dialog({ onClose }: { onClose: () => void }) {
     try {
       const res = await fetch("/api/import", { method: "POST", body });
       const data = (await res.json().catch(() => ({}))) as { error?: string };
-      if (!res.ok) throw new Error(data.error || "Import failed");
+      if (!res.ok) {
+        // Vercel turns a request body over its limit away before the app sees it, so there is no JSON to read
+        if (res.status === 413) {
+          throw new Error(
+            "That upload is too large for the deployed site (about 4.5 MB for both zips together). Import a smaller set, or run the app locally.",
+          );
+        }
+        throw new Error(data.error || "Import failed");
+      }
       onClose();
       router.refresh();
     } catch (e) {

@@ -37,7 +37,7 @@ This is the part worth understanding, because it is not the same in both places.
 | | Destination |
 | --- | --- |
 | **Local** (no Blob token) | `public/import/inbox/` and `public/import/attachments/`, on disk |
-| **Deployed** (Blob token set) | Vercel Blob: `wayboxai/import/inbox/…`, `wayboxai/import/attachments/…` |
+| **Deployed** (Blob token set) | Vercel Blob: `wayboxai/import/inbox.json`, `wayboxai/import/attachments.zip`, `wayboxai/import/manifest.json` |
 
 It is one or the other, never both. `src/lib/demo/import-store.ts` branches on whether
 `BLOB_READ_WRITE_TOKEN` is set and only one side ever runs.
@@ -45,6 +45,18 @@ It is one or the other, never both. `src/lib/demo/import-store.ts` branches on w
 **On a deployed app nothing is written to `public/import`.** It cannot be: a serverless
 filesystem is read-only, and anything written to it would be gone by the next request in
 any case. That is the whole reason the Blob backend exists.
+
+Blob holds an import as **two files, not one per email**: `inbox.json` (every email record)
+and `attachments.zip` (every attachment, stored uncompressed), beside a small
+`manifest.json`. Every Blob call is a network round trip, so keeping the disk layout there
+made a 700-email import 1,237 uploads one after another (79 s, measured against a stand-in
+Blob API at 60 ms per call) and the first inbox load 1,237 reads. As two files the same
+import uploads in about half a second and loads with two reads. Disk keeps one file per
+email, as the table says, because reading a file there costs nothing.
+
+An import made by an older version of the app (one Blob per file) is still read as it was,
+and Reset, Clear and Try demo data delete every blob under `wayboxai/import/`, however many
+there are.
 
 Two consequences that surprise people:
 
@@ -124,6 +136,11 @@ through the store on request. Two reasons:
 
 ## Behaviour to be aware of
 
+**The deployed site takes about 4.5 MB per upload.** Vercel turns a bigger request away
+before the app sees it, and the two zips travel in one request, so their combined size is
+what counts (the panel says so when it happens). Run locally there is no such limit beyond
+100 MB per zip.
+
 **An import is shared, not per-visitor.** It replaces the sample for everyone using the
 demo account until someone presses Reset. If two people are on the deployed site at once
 and one imports, the other sees the new inbox too.
@@ -175,6 +192,7 @@ A successful import returns how much was taken:
 | `Could not read that zip file` | The upload is not a readable zip. |
 | `This deployment's files are read-only…` | Deployed with no Blob store attached. Do the setup above. |
 | `Blob storage rejected the upload: …` | The store exists but refused it; the message is the store's own. |
+| `That upload is too large for the deployed site…` | The two zips together are over Vercel's ~4.5 MB request limit. |
 | `Importing sample data is for the demo account only` | Signed in with Google, not the demo account. |
 
 If an import ever leaves the demo in a state you did not intend, **Reset to sample data**
