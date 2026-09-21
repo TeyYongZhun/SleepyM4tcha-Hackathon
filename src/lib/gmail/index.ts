@@ -235,6 +235,8 @@ interface CountState {
   view?: InboxCategoryCounts;
   /** The scan in flight, so a caller that wants the newest numbers can wait for it */
   inflight?: Promise<void>;
+  /** The message ids the last scan covered, newest first */
+  ids?: string[];
 }
 
 const emptyCounts = (): Record<EmailCategory, number> => ({
@@ -264,6 +266,7 @@ async function scanInbox(token: string, userKey: string, state: CountState): Pro
   } while (next && ids.length < COUNT_CAP);
   const capped = !!next || ids.length > COUNT_CAP;
   const counted = ids.slice(0, COUNT_CAP);
+  state.ids = counted;
 
   const counts = emptyCounts();
   // A rescan keeps showing the last full count until it has a new one; only the first scan
@@ -361,6 +364,22 @@ export async function getInboxCountsNow(
     ]).finally(() => clearTimeout(timer!));
   }
   return snapshot(state);
+}
+
+/**
+ * The newest messages of the inbox (the same COUNT_CAP the tab totals cover), newest first, for
+ * an export. It waits for a recount to finish first, starting one if none is running, so what
+ * comes back is the inbox as it is now rather than as it was when it was last looked at.
+ */
+export async function getInboxForExport(
+  token: string,
+  userKey: string,
+): Promise<{ emails: Email[]; capped: boolean }> {
+  const state = scanIfDue(token, userKey, true);
+  if (state.inflight) await state.inflight;
+  const store = storeFor(userKey);
+  const emails = (state.ids ?? []).flatMap((id) => store.get(id)?.email ?? []);
+  return { emails, capped: state.view?.capped ?? false };
 }
 
 /**

@@ -140,6 +140,34 @@ def email_json(record, prediction, comparison: dict | None = None) -> dict:
     return out
 
 
+def submission_entry(prediction, comparison: dict | None, to_ground_truth: dict) -> dict:
+    """One entry of the hackathon submission -- the shape of an entry in ground_truth.json.
+
+    Not email_json: that speaks the frontend's field names (containers, gross_weight), where the
+    submission must use ground_truth.json's (container_count, gross_weight_kg), which the
+    comparator maps itself (`to_ground_truth` is its TO_GT_FIELD). Only a BL_COMPARISON is ever
+    compared, and one with no pair to compare is "OK" -- exactly what the ground truth says of
+    the ones that make no claim about attachments. A NEEDS_REVIEW pair reports its reason and no
+    defects; only a MISMATCH has defect fields.
+    """
+    status, reason, defects = "OK", None, []
+    if comparison:
+        status = comparison["status"]
+        if status == "NEEDS_REVIEW":
+            reason = comparison["reason"]
+        elif status == "MISMATCH":
+            defects = [
+                to_ground_truth.get(f, f) for f in COMPARISON_ORDER if f in comparison["mismatch_fields"]
+            ]
+    return {
+        "category": prediction.category,
+        "status": status,
+        "review_reason": reason,
+        "defect_fields": defects,
+        "has_defect": status == "MISMATCH",
+    }
+
+
 def comparison_json(comparison: dict) -> dict:
     """analyze_pair()'s result in the shape the frontend reads.
 

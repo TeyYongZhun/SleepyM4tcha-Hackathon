@@ -7,6 +7,7 @@ import { ChevronDown } from "lucide-react";
 import { CATEGORIES, type CategorySlug, type InboxCounts } from "@/lib/categories";
 import { useDetailsDismiss } from "@/lib/use-details-dismiss";
 import { Avatar } from "./avatar";
+import { ExportButton } from "./export-button";
 import { ImportButton } from "./import-dialog";
 import { Logo } from "./logo";
 import { NotificationBell } from "./notification-bell";
@@ -111,6 +112,7 @@ export function Navbar({
         </nav>
 
         <div className="ml-auto flex items-center gap-1 lg:ml-0">
+          <ExportButton />
           <NotificationBell />
           <ThemeToggle />
         <details ref={menu} className="group relative">

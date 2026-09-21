@@ -9,16 +9,19 @@ import { loadDemoEmail, loadDemoEmails } from "./demo/load";
 import {
   getInboxCounts as getGmailCounts,
   getInboxCountsNow as getGmailCountsNow,
+  getInboxForExport,
   getInboxPage as getGmailPage,
   getMessage,
   type InboxPage,
 } from "./gmail";
+import { mapPool } from "./gmail/api";
 import { withShipmentAnalysis } from "./gmail/attachments";
 import { wasOpened } from "./gmail/read-memory";
 import type { InboxRow } from "@/components/inbox-pane";
 import { displayName } from "./format";
 import { PAGE_SIZE } from "./paging";
 import { labelFor } from "./shipment";
+import { toSubmission, type Submission } from "./submission";
 import { withSummary } from "./summarize";
 import { MOCK_EMAILS } from "./mock-data";
 import type { Email, ShipmentFieldKey } from "./types";
@@ -149,6 +152,32 @@ async function loadEmail(emailId: string): Promise<Email | undefined> {
     return email && withShipmentAnalysis(session.accessToken, email);
   }
   return MOCK_EMAILS.find((e) => e.email_id === emailId);
+}
+
+/**
+ * The export: every email's category and SI-vs-BL verdict as the app has it right now, in the
+ * shape of ground_truth.json. Whichever inbox the account shows is the one exported.
+ *   demo / mock   the whole bundled inbox, judged by the app's own rules
+ *   backend       the gateway's full result (its list has categories only; the verdicts come
+ *                 from comparing every pair, which the gateway does for this call)
+ *   Gmail         the newest messages (the tab totals' cap), after a recount, with the
+ *                 attachments of the BL Comparison ones read so they carry a verdict
+ */
+export async function getSubmission(): Promise<Submission> {
+  const session = await auth();
+  if (backendEnabled && !session?.demo) return request(routes.submission);
+
+  if (await usesGmail()) {
+    const token = session!.accessToken!;
+    const { emails } = await getInboxForExport(token, session!.user.id);
+    // Only a BL Comparison is ever compared, so only those need their attachments read
+    const judged = await mapPool(emails, 4, async (e) =>
+      e.category === "bl_comparison" ? withShipmentAnalysis(token, e) : e,
+    );
+    return toSubmission(judged);
+  }
+
+  return toSubmission(await getEmails());
 }
 
 export function filterEmails(emails: Email[], slug: CategorySlug): Email[] {
