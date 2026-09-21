@@ -110,6 +110,9 @@ You can confirm which one is in use: signed in as the demo account,
 `/api/import` reports `"storage":"blob"` once the token is there, and
 `"storage":"disk"` when it is not.
 
+Each of these replaces the whole inbox and reloads the page when it is done, so what you
+see afterwards is what is stored, not a cached copy of what was there before.
+
 Imports are limited to about 4.5 MB of zips in total on a deployed app: that is Vercel's
 request-body limit for functions, and the import panel says so when it is hit. A larger data
 set has to be imported on a machine running the app itself.
