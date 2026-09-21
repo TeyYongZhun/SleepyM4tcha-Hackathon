@@ -138,14 +138,15 @@ export async function getInboxPage(
     throw e;
   }
 
-  // "1-50 of 1,234": one cheap call, remembered with the cursor. Not worth failing the page.
-  if (cur.total === undefined) {
-    cur.total = await gmailGet<{ messagesTotal?: number }>(token, "/labels/INBOX", {
-      fields: "messagesTotal",
-    })
-      .then((l) => l.messagesTotal)
-      .catch(() => undefined);
-  }
+  // "1-50 of 1,234". Read every time, not held with the cursor: the ids above are always
+  // this moment's, so a held total goes stale the moment mail arrives and the header ends up
+  // reading "1-30 of 29". It is a label read (1 quota unit, against 5 for the page of ids),
+  // and if it fails the last known total stands rather than the header losing its total.
+  cur.total = await gmailGet<{ messagesTotal?: number }>(token, "/labels/INBOX", {
+    fields: "messagesTotal",
+  })
+    .then((l) => l.messagesTotal ?? cur.total)
+    .catch(() => cur.total);
 
   const store = storeFor(userKey);
   const todo = refresh ? ids : ids.filter((id) => !fresh(store.get(id)));
