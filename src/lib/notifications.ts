@@ -1,7 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
-import { onScopeChange, scopedKey } from "./store-scope";
+import { currentScope, keyFor, onScopeChange, scopedKey } from "./store-scope";
 
 /**
  * The notifications behind the bell in the navbar: every reply result that has been reported,
@@ -100,31 +100,54 @@ export function latestNotificationId(): string | null {
   return read()[0]?.id ?? null;
 }
 
-export function addNotification(kind: NotificationKind, subject: string, pending = false) {
-  write([
-    {
-      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-      kind,
-      subject,
-      at: Date.now(),
-      pending,
-    },
-    ...read(),
-  ]);
+/**
+ * Changes one account's list. That is whoever is signed in, unless the caller names another: a
+ * reply watch names the account it started in, so a result that comes back after switching
+ * accounts is filed with the account that sent the reply -- straight to its storage, without
+ * appearing on the screen of the account now signed in.
+ */
+function change(owner: string, edit: (all: Notification[]) => Notification[]) {
+  if (owner === currentScope()) return write(edit(read()));
+  try {
+    const key = keyFor(KEY_BASE, owner);
+    const parsed: unknown = JSON.parse(localStorage.getItem(key) ?? "[]");
+    const all = Array.isArray(parsed) ? (parsed as Notification[]) : [];
+    localStorage.setItem(key, JSON.stringify(edit(all).slice(0, LIMIT)));
+  } catch {
+    // private mode, or nothing readable there: that account just won't see it
+  }
+}
+
+const make = (kind: NotificationKind, subject: string, pending: boolean): Notification => ({
+  id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+  kind,
+  subject,
+  at: Date.now(),
+  pending,
+});
+
+export function addNotification(
+  kind: NotificationKind,
+  subject: string,
+  pending = false,
+  owner = currentScope(),
+) {
+  change(owner, (all) => [make(kind, subject, pending), ...all]);
 }
 
 /**
  * Replaces the newest notification when it is the same reply moving on -- "sent" becoming
  * "delivered" or "bounced" -- rather than logging the same reply twice.
  */
-export function updateLatest(kind: NotificationKind, subject: string) {
-  const all = read();
-  const latest = all[0];
-  if (!latest || latest.subject !== subject || latest.kind !== "sent") {
-    return addNotification(kind, subject);
-  }
-  // Same id, so its toast stays on screen and simply changes rather than reappearing
-  write([{ ...latest, kind, at: Date.now(), read: false, pending: false }, ...all.slice(1)]);
+export function updateLatest(kind: NotificationKind, subject: string, owner = currentScope()) {
+  change(owner, (all) => {
+    const latest = all[0];
+    if (!latest || latest.subject !== subject || latest.kind !== "sent") {
+      return [make(kind, subject, false), ...all];
+    }
+    // Same id, so its toast stays on screen and simply changes rather than reappearing
+    return [{ ...latest, kind, at: Date.now(), read: false, pending: false }, ...all.slice(1)];
+  });
 }
 
 export function markAllRead() {

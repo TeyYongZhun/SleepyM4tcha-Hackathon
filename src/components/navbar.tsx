@@ -1,9 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { CATEGORIES, type CategorySlug, type InboxCounts } from "@/lib/categories";
 import { useDetailsDismiss } from "@/lib/use-details-dismiss";
 import { Avatar } from "./avatar";
@@ -53,6 +53,12 @@ function useLiveCounts(enabled: boolean): InboxCounts | null {
     };
   }, [enabled]);
   return snap;
+}
+
+/** A spinner on the tab just pressed, until its list is on screen, so the press answers at once. */
+function TabPending() {
+  const { pending } = useLinkStatus();
+  return pending ? <Loader2 data-loading size={12} aria-label="Loading" className="animate-spin" /> : null;
 }
 
 export function Navbar({
@@ -107,6 +113,7 @@ export function Navbar({
                     {live?.capped && "+"}
                   </span>
                 )}
+                <TabPending />
               </Link>
             );
           })}

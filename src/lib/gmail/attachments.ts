@@ -2,6 +2,7 @@ import "server-only";
 import { bufferToText, kindFromFilename, READABLE_EXTENSIONS } from "../demo/extract";
 import { assessShipmentDocuments, bodyClaimsAttachment } from "../demo/compare";
 import { detectDocKind, parseShipmentText } from "../demo/parse";
+import { gatewayAvailable, gatewayFailed } from "../api/gateway-health";
 import { bodyText } from "../text";
 import type { Email, ShipmentDocument, ShipmentFieldComparison } from "../types";
 import { mapPool } from "./api";
@@ -27,8 +28,11 @@ const CONCURRENCY = 4;
 /** Scanned PDFs have no text layer, so there is nothing to compare. */
 const MIN_USEFUL_TEXT = 20;
 
-/** Comparing two documents is slower than classifying text, but still well under the page budget. */
-const COMPARE_TIMEOUT_MS = 20_000;
+/**
+ * Comparing two documents is slower than classifying text, but an awake gateway does it in a
+ * second or two. Longer than this is a gateway that is asleep or gone, and the email is waiting.
+ */
+const COMPARE_TIMEOUT_MS = 10_000;
 
 /** The document plus the bytes it came from, so comparing doesn't re-download. */
 interface Analysed {
@@ -75,11 +79,13 @@ interface ComparisonResult {
 }
 
 async function compare(si: Analysed, bl: Analysed): Promise<ComparisonResult | null> {
-  if (!CLASSIFIER_API_URL) return null;
+  // Down a moment ago (see api/gateway-health): the built-in comparison answers at once
+  if (!CLASSIFIER_API_URL || !gatewayAvailable()) return null;
   const body = new FormData();
   body.append("si", new Blob([new Uint8Array(si.data)]), si.doc.filename);
   body.append("bl", new Blob([new Uint8Array(bl.data)]), bl.doc.filename);
 
+  let status: number | undefined;
   try {
     const res = await fetch(`${CLASSIFIER_API_URL}/compare`, {
       method: "POST",
@@ -87,9 +93,11 @@ async function compare(si: Analysed, bl: Analysed): Promise<ComparisonResult | n
       cache: "no-store",
       signal: AbortSignal.timeout(COMPARE_TIMEOUT_MS),
     });
+    status = res.status;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return (await res.json()) as ComparisonResult;
   } catch (e) {
+    gatewayFailed(status);
     // The email still opens, just without a verdict: reading mail must not
     // depend on the comparator being up.
     console.warn(`[gmail] comparison unavailable (${e instanceof Error ? e.message : e})`);

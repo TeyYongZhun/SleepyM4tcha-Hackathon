@@ -1,4 +1,5 @@
 import { adaptCategory } from "../api/adapters";
+import { gatewayAvailable, gatewayFailed } from "../api/gateway-health";
 import { buildDemoSummary, classifyDemoEmail } from "../demo/classify";
 import { parseEmailBody } from "../demo/parse";
 import { bodyText } from "../text";
@@ -18,8 +19,12 @@ import type { Email, EmailSummary } from "../types";
 /** Unset, or an empty value in .env.local, means "use the keyword rules". */
 const CLASSIFIER_API_URL = process.env.CLASSIFIER_API_URL?.replace(/\/+$/, "") || undefined;
 
-/** Short: 50 messages classify concurrently, and the page itself is aborted at 15s. */
-const TIMEOUT_MS = 5_000;
+/**
+ * Short: an awake gateway answers in well under a second, and a page of messages is classified
+ * before its list is shown. A gateway that is asleep never answers, so this is what the first
+ * messages after it goes quiet wait before the rules take over (see api/gateway-health).
+ */
+const TIMEOUT_MS = 3_000;
 
 /** One warning per process, not one per message, or a page floods the log 50 times. */
 let warned = false;
@@ -36,7 +41,9 @@ type Classified = Pick<Email, "category" | "summary">;
 
 /** null = could not classify remotely; the caller falls back. */
 async function classifyRemotely(email: Email, body: string): Promise<Classified | null> {
-  if (!CLASSIFIER_API_URL) return null;
+  // Down a moment ago: don't make this message wait out a timeout to find out again
+  if (!CLASSIFIER_API_URL || !gatewayAvailable()) return null;
+  let status: number | undefined;
   try {
     const res = await fetch(`${CLASSIFIER_API_URL}/classify`, {
       method: "POST",
@@ -51,6 +58,7 @@ async function classifyRemotely(email: Email, body: string): Promise<Classified 
       cache: "no-store",
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
+    status = res.status;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     return {
@@ -60,6 +68,7 @@ async function classifyRemotely(email: Email, body: string): Promise<Classified 
       summary: data.summary as EmailSummary,
     };
   } catch (e) {
+    gatewayFailed(status);
     warnOnce(e instanceof Error ? e.message : String(e));
     return null;
   }
