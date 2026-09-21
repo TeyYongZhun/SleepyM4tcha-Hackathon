@@ -3,7 +3,7 @@ import { getCategoryByEmailCategory } from "@/lib/categories";
 import { extractReferences } from "@/lib/demo/classify";
 import { bodyText } from "@/lib/text";
 import type { Email, EmailCategory } from "@/lib/types";
-import { REVIEW_REASON_TEXT } from "@/lib/shipment";
+import { reviewReasonText } from "@/lib/shipment";
 import { ResolveButton, StatusBox } from "./resolve-status";
 import { ShipmentChecklist } from "./shipment-checklist";
 
@@ -78,7 +78,7 @@ ${bodyText(email.body, email.body_type)}`);
             emailId={email.email_id}
             subject={email.subject}
             status={email.status}
-            reasonText={email.review_reason ? REVIEW_REASON_TEXT[email.review_reason] : undefined}
+            reasonText={reviewReasonText(email)}
             defectText={
               email.defect_fields?.length
                 ? `Differs on: ${email.defect_fields.join(", ").replace(/_/g, " ")}`

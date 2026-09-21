@@ -2,7 +2,7 @@ import "server-only";
 import { defectLabels, emailContext } from "./email-context";
 import { displayName } from "./format";
 import { askGemini } from "./gemini";
-import { REVIEW_REASON_TEXT } from "./shipment";
+import { reviewReasonText } from "./shipment";
 import { bodyText } from "./text";
 import type { Email } from "./types";
 
@@ -47,7 +47,7 @@ function templateDraft(email: Email, signOff: string): string {
       (fields.length ? ` on: ${fields.join(", ")}.` : ".") +
       `\n\nCould you please confirm the correct details, or send corrected documents so we can proceed?`;
   } else if (email.status === "NEEDS_REVIEW") {
-    const why = email.review_reason && REVIEW_REASON_TEXT[email.review_reason];
+    const why = reviewReasonText(email);
     middle =
       `Thank you for your email. We could not complete the check on the documents` +
       (why ? ` (${why}).` : ".") +
