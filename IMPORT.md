@@ -128,6 +128,12 @@ through the store on request. Two reasons:
 demo account until someone presses Reset. If two people are on the deployed site at once
 and one imports, the other sees the new inbox too.
 
+**Try the demo starts on the sample.** Pressing **Try the demo** on the landing or sign-in page
+first puts the bundled 520 emails back, so a new visitor never arrives at an inbox that the last
+one imported or cleared. Because the setting is shared, that also resets it for anyone already
+in the demo (they see the sample within ten seconds, or on their next click). If the store
+cannot be reached the demo still opens, on whatever it was last showing.
+
 **Other instances take a few seconds to notice.** A deployed app runs as several instances
 that cannot tell each other anything, so each one spots an import by reading a
 `manifest.json` version it has not seen before. That manifest is re-read at most every ten

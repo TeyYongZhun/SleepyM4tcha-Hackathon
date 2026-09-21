@@ -1,5 +1,6 @@
 import { LogOut } from "lucide-react";
 import { DEMO_ENABLED, signIn, signOut } from "@/auth";
+import { clearImport } from "@/lib/demo/import-store";
 
 const GoogleIcon = () => (
   <svg width="18" height="18" viewBox="0 0 18 18" aria-hidden>
@@ -45,6 +46,20 @@ export function SignInButton({
   );
 }
 
+/**
+ * A fresh demo starts on the bundled sample. What the demo shows is one shared setting (see
+ * IMPORT.md), so without this a visitor could arrive to an inbox the last one had imported or
+ * cleared. Dropping the import puts the sample back for everyone using the demo account; if
+ * the store cannot be reached the demo still opens, just on whatever it was last showing.
+ */
+async function startOnSampleData() {
+  try {
+    await clearImport();
+  } catch (e) {
+    console.warn("[demo] could not put the sample data back:", e instanceof Error ? e.message : e);
+  }
+}
+
 /** Logs in as the demo user, which browses the dummy inbox in public/dummy. */
 export function DemoSignInButton({
   size = "md",
@@ -59,6 +74,7 @@ export function DemoSignInButton({
       className={fullWidth ? "w-full" : undefined}
       action={async () => {
         "use server";
+        await startOnSampleData();
         await signIn("demo", { redirectTo: "/dashboard" });
       }}
     >
