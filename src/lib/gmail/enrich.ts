@@ -78,7 +78,6 @@ function classifyLocally(email: Email, body: string): Classified {
       { subject: email.subject, body },
       category,
       reason,
-      email.attachments.length,
       confidence,
     ),
   };

@@ -114,8 +114,11 @@ export function summarizeShipment(email: Email): ShipmentSummary {
   const si = check(docs, "SI");
   const bl = check(docs, "BL");
 
-  // Supplied with the email (backend, or the demo loader); nothing is parsed here
-  const emailFields = email.shipment_info ?? {};
+  // Supplied with the email (backend, or the demo loader); nothing is parsed here.
+  // An SI Request with no SI attached is only a request: shipment details that the body
+  // happens to mention are not carried into the table, which stays blank until a file arrives.
+  const ignoreBody = email.category === "si_request" && si.presence !== "present";
+  const emailFields = ignoreBody ? {} : (email.shipment_info ?? {});
   // The OC number is in nearly every subject line, so it alone doesn't mean the body holds an SI
   const hasInfo = Object.keys(emailFields).filter((k) => k !== "oc_no").length >= 3;
 

@@ -53,7 +53,7 @@ async function adapt(raw: DummyEmail): Promise<Email> {
     category,
     // Demo only: real data arrives with these already extracted
     shipment_info: parseEmailBody(raw.subject, raw.body),
-    summary: buildDemoSummary(raw, category, reason, attachments.length, confidence),
+    summary: buildDemoSummary(raw, category, reason, confidence),
   };
 
   // The list needs to know which emails want a person, and why, so it reads the
