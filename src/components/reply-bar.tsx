@@ -113,27 +113,34 @@ export function ReplyBar({
       let sentTo = "";
 
       /**
-       * Both checks call it new only once a snapshot exists, so a failed first call can't turn
-       * every message already there into a hit.
+       * Both checks work the same way, and both are careful to cost one request while nothing
+       * is happening: list the newest ids, compare them against a snapshot, and only open an
+       * id that wasn't in it. They also call it new only once a snapshot exists, so a failed
+       * first call can't turn every message already there into a hit.
        */
+      const listIds = async (route: "reply-status" | "reply-bounce") => {
+        const res = await fetch(`/api/${route}`);
+        if (!res.ok) throw new Error(String(res.status));
+        return (await res.json()) as { supported: boolean; ids?: string[] };
+      };
+
       const poll = async (): Promise<"new" | "none" | "unsupported" | "error"> => {
         try {
-          const res = await fetch("/api/reply-status");
-          if (!res.ok) return "error";
-          const data = (await res.json()) as {
-            supported: boolean;
-            messages?: { id: string; to: string }[];
-          };
+          const data = await listIds("reply-status");
           if (!data.supported) return "unsupported";
-          const messages = data.messages ?? [];
+          const ids = data.ids ?? [];
           if (!baseline) {
-            baseline = new Set(messages.map((m) => m.id));
+            baseline = new Set(ids);
             return "none";
           }
           // Newest first, so the first unseen one is the message they just sent
-          const fresh = messages.find((m) => !baseline!.has(m.id));
+          const fresh = ids.find((id) => !baseline!.has(id));
           if (!fresh) return "none";
-          sentTo = fresh.to;
+
+          // Worth a second call now, once: which address did it actually go to?
+          const res = await fetch(`/api/reply-status?${new URLSearchParams({ id: fresh })}`);
+          if (!res.ok) return "error"; // leave it unseen and try again next round
+          sentTo = ((await res.json()) as { to?: string }).to ?? "";
           return "new";
         } catch {
           return "error"; // network blip: try again next round
@@ -143,17 +150,26 @@ export function ReplyBar({
       /** Without an address: the snapshot. With one: has a failure for it arrived since? */
       const pollBounce = async (address?: string): Promise<"new" | "none" | "error"> => {
         try {
-          const query = address ? `?${new URLSearchParams({ to: address })}` : "";
-          const res = await fetch(`/api/reply-bounce${query}`);
-          if (!res.ok) return "error";
-          const data = (await res.json()) as { supported: boolean; ids?: string[] };
+          const data = await listIds("reply-bounce");
           if (!data.supported) return "none";
           const ids = data.ids ?? [];
           if (!bounced) {
             bounced = new Set(ids);
             return "none";
           }
-          return ids.some((id) => !bounced!.has(id)) ? "new" : "none";
+          const arrived = ids.filter((id) => !bounced!.has(id));
+          if (!arrived.length || !address) return "none";
+
+          for (const id of arrived) {
+            const res = await fetch(
+              `/api/reply-bounce?${new URLSearchParams({ id, to: address })}`,
+            );
+            if (!res.ok) return "error"; // still unseen, so it gets looked at again
+            if (((await res.json()) as { match?: boolean }).match) return "new";
+            // Ordinary mail that happened to land: don't reopen it every couple of seconds
+            bounced.add(id);
+          }
+          return "none";
         } catch {
           return "error";
         }
