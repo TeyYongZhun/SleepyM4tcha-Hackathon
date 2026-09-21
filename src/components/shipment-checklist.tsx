@@ -172,17 +172,23 @@ export function ShipmentChecklist({ email }: { email: Email }) {
   // One column per source that actually has data (SI file, BL file, the email
   // text), falling back to the compared values when no parsed document exists.
   // With none, keep SI and BL so every field is still listed, all marked absent.
+  // An email that needs review is a pair that could not be checked, so it always keeps
+  // both SI and BL: a side that is missing or unreadable shows as a column of dashes,
+  // which is what tells the reader which half never arrived.
+  const needsBoth = email.status === "NEEDS_REVIEW";
+  const absentSide = (label: string, requiredKey: Source["requiredKey"]): Source[] =>
+    needsBoth ? [{ label, fields: null, requiredKey }] : [];
   const sources: Source[] = [
     ...(s.si.presence === "present"
       ? [{ label: "SI", fields: s.si.document!.fields, requiredKey: "siRequired" as const }]
       : comparison.size
         ? [{ label: "SI", fields: comparedSi, requiredKey: "siRequired" as const }]
-        : []),
+        : absentSide("SI", "siRequired")),
     ...(s.bl.presence === "present"
       ? [{ label: "BL", fields: s.bl.document!.fields, requiredKey: "blRequired" as const }]
       : comparison.size
         ? [{ label: "BL", fields: comparedBl, requiredKey: "blRequired" as const }]
-        : []),
+        : absentSide("BL", "blRequired")),
     ...(s.email.hasInfo
       ? [{ label: "Email", fields: s.email.fields, requiredKey: "siRequired" as const }]
       : []),
