@@ -7,7 +7,7 @@
 
 const STYLE = `
 :root{--paper:#faf7f2;--surface:#fff;--ink:#12172b;--soft:#5b6072;--line:#e4ddd0;--copper:#c1652f;--shimmer:#f1ece3}
-:root[data-theme="dark"]{--paper:#0a0a0a;--surface:rgb(255 255 255 / .035);--ink:#f0f0f0;--soft:#a8a8a8;--line:rgb(255 255 255 / .3);--copper:#d9773f;--shimmer:rgb(255 255 255 / .06)}
+:root[data-theme="dark"]{--paper:#151515;--surface:rgb(250 249 245 / .045);--ink:#f0efec;--soft:#b0aea5;--line:rgb(250 249 245 / .11);--copper:#d9773f;--shimmer:rgb(250 249 245 / .07)}
 :root[data-theme="dark"] body{background-image:radial-gradient(70rem 42rem at 50% -22%,rgb(255 255 255 / .022),transparent 60%),radial-gradient(52rem 36rem at 5% 105%,rgb(217 119 63 / .025),transparent 58%);background-attachment:fixed}
 :root[data-theme="dark"] .card{background-image:linear-gradient(180deg,rgb(255 255 255 / .035),rgb(255 255 255 / 0) 60%)}
 *{box-sizing:border-box}

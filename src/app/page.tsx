@@ -224,7 +224,7 @@ export default async function LandingPage() {
         </section>
 
         <div className="flex min-h-[calc(65svh-6rem)] snap-start flex-col">
-          <section className="flex flex-1 flex-col items-center justify-center bg-copper px-5 py-16 text-center sm:px-8">
+          <section className="band-cta flex flex-1 flex-col items-center justify-center bg-copper px-5 py-16 text-center sm:px-8">
             <h2 className="mx-auto mb-7 max-w-[640px] text-[28px] font-semibold text-white">
               Stop digging through your inbox for tracking numbers.
             </h2>

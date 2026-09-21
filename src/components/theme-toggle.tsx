@@ -27,8 +27,13 @@ function setTheme(next: Theme) {
   window.dispatchEvent(new Event(EVENT));
 }
 
+/** The current theme, live: re-renders when the toggle is pressed. "light" until the client takes over. */
+export function useTheme(): Theme {
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
 export function ThemeToggle() {
-  const theme = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+  const theme = useTheme();
   const dark = theme === "dark";
 
   return (
