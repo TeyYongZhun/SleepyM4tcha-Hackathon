@@ -147,7 +147,10 @@ export async function readAttachmentBytes(m: ImportManifest, name: string): Prom
 export async function clearImport(): Promise<void> {
   if (usingBlob()) {
     const { blobs } = await list({ prefix: BLOB_PREFIX });
-    if (blobs.length) await del(blobs.map((b) => b.url));
+    // By pathname, not by URL. A URL names the store it was written to, so one left behind by
+    // a store that has since been replaced is refused as someone else's resource and nothing
+    // can ever be cleared. A pathname is resolved against whichever store the token owns.
+    if (blobs.length) await del(blobs.map((b) => b.pathname));
   } else {
     await fs.rm(IMPORT_DIR, { recursive: true, force: true });
   }

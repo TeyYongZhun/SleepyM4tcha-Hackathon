@@ -1,4 +1,5 @@
 import path from "node:path";
+import { BlobAccessError } from "@vercel/blob";
 import JSZip from "jszip";
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
@@ -94,6 +95,21 @@ function storageFailure(e: unknown, what: string) {
           "project so imported data has somewhere to live, then redeploy.",
       },
       501,
+    );
+  }
+  // The store refusing the token is the one failure with a specific fix, and the SDK's own
+  // wording ("provide a valid token for this resource") reads like a coding mistake rather
+  // than a setting to change, so say what to change.
+  if (e instanceof BlobAccessError) {
+    return json(
+      {
+        error:
+          "Vercel Blob refused the write: BLOB_READ_WRITE_TOKEN is missing, read-only, or " +
+          "belongs to a different store. In Storage, connect the Blob store with " +
+          "“Add a read-write token env var” ticked, then redeploy so the running " +
+          "deployment picks the new token up.",
+      },
+      502,
     );
   }
   return json(
