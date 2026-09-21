@@ -6,6 +6,7 @@ import { CATEGORIES, getCategoryBySlug, type InboxCounts } from "./categories";
 import { ApiError, backendEnabled, request } from "./api/client";
 import { routes } from "./api/routes";
 import { loadDemoEmail, loadDemoEmails } from "./demo/load";
+import { demoSource } from "./demo/source";
 import {
   getInboxCounts as getGmailCounts,
   getInboxCountsNow as getGmailCountsNow,
@@ -50,6 +51,11 @@ export interface InboxPageResult extends InboxPage {
    * category, so the list filters them itself (Gmail: the rest of the inbox isn't loaded).
    */
   filtered: boolean;
+  /**
+   * Which data set the demo inbox is showing (bundled, imported, cleared). It changes when the
+   * demo's data is replaced, and the list uses it to start over instead of keeping the old rows.
+   */
+  version?: number;
 }
 
 /** One page (PAGE_SIZE) of the inbox for a filter tab, newest first, from whichever source applies. */
@@ -87,6 +93,7 @@ export async function getInboxPage(
     total: all.length,
     hasNext: current < pages,
     filtered: true,
+    version: session?.demo ? (await demoSource()).version : undefined,
   };
 }
 

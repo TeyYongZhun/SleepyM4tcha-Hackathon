@@ -2,7 +2,7 @@ import path from "node:path";
 import JSZip from "jszip";
 import type { NextRequest } from "next/server";
 import { auth } from "@/auth";
-import { type SavedFile, clearImport, saveImport, usingBlob } from "@/lib/demo/import-store";
+import { type SavedFile, clearImport, saveEmpty, saveImport, usingBlob } from "@/lib/demo/import-store";
 import { demoSource } from "@/lib/demo/source";
 
 /**
@@ -10,6 +10,7 @@ import { demoSource } from "@/lib/demo/source";
  *
  *   GET     what is being shown now, and how many emails it holds
  *   POST    two zips (inbox + attachments) -> replaces the bundled sample
+ *   PUT     empty the inbox: no emails at all until something is imported or the sample is back
  *   DELETE  throw the import away and go back to the bundled sample
  *
  * Demo only. A signed-in Google user is reading their real mailbox, where a sample inbox
@@ -77,13 +78,42 @@ async function readZip(file: File, allowed: string[]) {
   return { files, skipped };
 }
 
+/**
+ * The response for a write the store refused. A host whose disk is read-only and that has no
+ * Blob store has nowhere to keep anything, and saying so points at the fix; every other
+ * failure is reported as what it is.
+ */
+function storageFailure(e: unknown, what: string) {
+  const err = e as NodeJS.ErrnoException;
+  console.error(`[import] ${what}`, err);
+  if (err.code === "EROFS" || err.code === "EACCES" || err.code === "EPERM") {
+    return json(
+      {
+        error:
+          "This deployment's files are read-only. Attach a Vercel Blob store to the " +
+          "project so imported data has somewhere to live, then redeploy.",
+      },
+      501,
+    );
+  }
+  return json(
+    {
+      error: usingBlob()
+        ? `Blob storage rejected the change: ${(err as Error).message}`
+        : `Could not ${what}`,
+    },
+    502,
+  );
+}
+
 export async function GET() {
   const denied = await demoOnly();
   if (denied) return new Response(denied, { status: 403 });
 
   const src = await demoSource();
   return json({
-    imported: src.imported,
+    imported: src.imported && !src.empty,
+    cleared: src.empty,
     emails: (await src.listInbox()).length,
     // The panel says where an import would be kept, since that decides whether it survives
     storage: usingBlob() ? "blob" : "disk",
@@ -139,26 +169,7 @@ export async function POST(req: NextRequest) {
   try {
     await saveImport(inboxZip.files, attachmentZip.files);
   } catch (e) {
-    const err = e as NodeJS.ErrnoException;
-    console.error("[import] save", err);
-    if (err.code === "EROFS" || err.code === "EACCES" || err.code === "EPERM") {
-      return json(
-        {
-          error:
-            "This deployment's files are read-only. Attach a Vercel Blob store to the " +
-            "project so imported data has somewhere to live, then redeploy.",
-        },
-        501,
-      );
-    }
-    return json(
-      {
-        error: usingBlob()
-          ? `Blob storage rejected the upload: ${(err as Error).message}`
-          : "Could not save the imported files",
-      },
-      502,
-    );
+    return storageFailure(e, "save the imported files");
   }
 
   return json({
@@ -168,6 +179,18 @@ export async function POST(req: NextRequest) {
     skipped: inboxZip.skipped + attachmentZip.skipped,
     storage: usingBlob() ? "blob" : "disk",
   });
+}
+
+export async function PUT() {
+  const denied = await demoOnly();
+  if (denied) return new Response(denied, { status: 403 });
+
+  try {
+    await saveEmpty();
+  } catch (e) {
+    return storageFailure(e, "clear the inbox");
+  }
+  return json({ imported: false, cleared: true, emails: 0, storage: usingBlob() ? "blob" : "disk" });
 }
 
 export async function DELETE() {

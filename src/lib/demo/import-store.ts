@@ -1,6 +1,7 @@
 import "server-only";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { cookies } from "next/headers";
 import { del, head, list, put } from "@vercel/blob";
 
 /**
@@ -20,6 +21,11 @@ import { del, head, list, put } from "@vercel/blob";
 export interface ImportManifest {
   /** Changes on every import. Caches keyed by it rebuild themselves. */
   version: number;
+  /**
+   * Set by Clear: an inbox with nothing in it, on purpose. Without this an empty manifest
+   * would be indistinguishable from "nothing imported" and the bundled sample would come back.
+   */
+  empty?: boolean;
   /** filename -> where to fetch it. Empty string means "read it from disk". */
   inbox: Record<string, string>;
   attachments: Record<string, string>;
@@ -47,11 +53,47 @@ export const usingBlob = (): boolean => !!process.env.BLOB_READ_WRITE_TOKEN;
  */
 const MANIFEST_TTL_MS = 10_000;
 
-let cached: { at: number; manifest: ImportManifest | null } | undefined;
+type Cached = { at: number; manifest: ImportManifest | null };
 
-/** Called by the instance that just wrote, so its own next read is never stale. */
-export function invalidateManifest(): void {
-  cached = undefined;
+// On globalThis, not module scope: pages and API routes are bundled separately and would each
+// get their own copy, so a change made in a route would never be seen by the page that renders
+// the inbox until its own copy expired.
+const g = globalThis as unknown as { __wayboxImportManifest?: Cached };
+
+/**
+ * Set on the browser that changed the data (import, clear, sample back) to the moment it did.
+ * Another serverless instance may be holding the manifest it read before the change, and a
+ * person who has just pressed Clear should see an empty inbox, not the old one for up to
+ * MANIFEST_TTL_MS. Any instance seeing a request that carries this, dated after its own read,
+ * reads the store again -- so a change is seen at once by whoever made it, wherever their next
+ * request lands, and within the TTL by everyone else.
+ */
+const CHANGED_COOKIE = "wayboxai-demo-data-changed";
+
+async function changedAtByThisBrowser(): Promise<number> {
+  try {
+    return Number((await cookies()).get(CHANGED_COOKIE)?.value) || 0;
+  } catch {
+    return 0; // not inside a request (a build, a script)
+  }
+}
+
+/**
+ * Called by the code that just wrote: drops what this instance holds, and tells the browser
+ * that made the change (see CHANGED_COOKIE) so other instances re-read for it.
+ */
+export async function invalidateManifest(): Promise<void> {
+  g.__wayboxImportManifest = undefined;
+  try {
+    (await cookies()).set(CHANGED_COOKIE, String(Date.now()), {
+      path: "/",
+      httpOnly: true,
+      sameSite: "lax",
+      maxAge: 120,
+    });
+  } catch {
+    // not inside a request: nobody's browser to tell
+  }
 }
 
 async function readManifestUncached(): Promise<ImportManifest | null> {
@@ -73,9 +115,12 @@ async function readManifestUncached(): Promise<ImportManifest | null> {
 }
 
 export async function readManifest(): Promise<ImportManifest | null> {
-  if (cached && Date.now() - cached.at < MANIFEST_TTL_MS) return cached.manifest;
+  const held = g.__wayboxImportManifest;
+  if (held && Date.now() - held.at < MANIFEST_TTL_MS && held.at >= (await changedAtByThisBrowser())) {
+    return held.manifest;
+  }
   const manifest = await readManifestUncached();
-  cached = { at: Date.now(), manifest };
+  g.__wayboxImportManifest = { at: Date.now(), manifest };
   return manifest;
 }
 
@@ -106,7 +151,7 @@ export async function clearImport(): Promise<void> {
   } else {
     await fs.rm(IMPORT_DIR, { recursive: true, force: true });
   }
-  invalidateManifest();
+  await invalidateManifest();
 }
 
 /** Replaces whatever was imported before. Returns the manifest that is now live. */
@@ -130,13 +175,6 @@ export async function saveImport(
     // Sequential on purpose: a few hundred small uploads at once trips the store's rate limit
     for (const f of inbox) await upload("inbox", f);
     for (const f of attachments) await upload("attachments", f);
-
-    await put(MANIFEST_PATH, JSON.stringify(manifest), {
-      access: "public",
-      addRandomSuffix: false,
-      allowOverwrite: true,
-      contentType: "application/json",
-    });
   } else {
     for (const [folder, files] of [
       ["inbox", inbox],
@@ -148,9 +186,43 @@ export async function saveImport(
         manifest[folder][f.name] = ""; // on disk: the path is implied by the folder
       }
     }
-    await fs.writeFile(DISK_MANIFEST, JSON.stringify(manifest));
   }
 
-  invalidateManifest();
+  await writeManifest(manifest);
+  await invalidateManifest();
   return manifest;
+}
+
+/**
+ * Empties the inbox: everything imported is thrown away and the demo is left showing no emails
+ * at all -- neither the imported data nor the bundled sample -- until something is imported or
+ * the sample is brought back (`clearImport`). Kept the same way an import is, so it holds on a
+ * serverless host exactly as it does on disk.
+ */
+export async function saveEmpty(): Promise<ImportManifest> {
+  await clearImport();
+  const manifest: ImportManifest = { version: Date.now(), inbox: {}, attachments: {}, empty: true };
+  await writeManifest(manifest);
+  await invalidateManifest();
+  return manifest;
+}
+
+/**
+ * Puts the manifest where readers look for it. It is the one file that is overwritten in
+ * place, so its cache lifetime is kept short (60s is the store's minimum): the default is a
+ * month, which could leave other instances reading the previous state for as long.
+ */
+async function writeManifest(manifest: ImportManifest): Promise<void> {
+  if (usingBlob()) {
+    await put(MANIFEST_PATH, JSON.stringify(manifest), {
+      access: "public",
+      addRandomSuffix: false,
+      allowOverwrite: true,
+      contentType: "application/json",
+      cacheControlMaxAge: 60,
+    });
+  } else {
+    await fs.mkdir(IMPORT_DIR, { recursive: true });
+    await fs.writeFile(DISK_MANIFEST, JSON.stringify(manifest));
+  }
 }
