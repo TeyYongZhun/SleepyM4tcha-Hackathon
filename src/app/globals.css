@@ -43,28 +43,29 @@
 }
 
 html[data-theme="dark"] {
-  /* Neutral greys, no blue cast. A deep near-black page: the panels sit only just above it,
-     so it is the bright borders, not a lighter fill, that separate them. */
-  --color-ink: #f0f0f0;
-  --color-ink-soft: #a8a8a8;
-  --color-paper: #0a0a0a;
+  /* Claude's own dark palette, sampled from claude.ai: a soft warm charcoal page rather than
+     near-black, cream-tinted text rather than pure white, and hairline borders, so it is easy
+     on the eyes for long stretches. Text stays clearly readable (headings ~14:1, secondary ~8:1). */
+  --color-ink: #f0efec;
+  --color-ink-soft: #b0aea5;
+  --color-paper: #151515;
   --color-copper: #d9773f;
 
-  /* Panels are a film of white over the page rather than their own solid colour, so the glow
-     behind them shows through and they read as glass. Kept thin, so the page stays close to
-     black: over #0a0a0a these land at about #131313 / #191919, with borders near #5a5a5a. */
-  --color-surface: rgb(255 255 255 / 0.035);
+  /* Panels are a film of warm white over the page rather than their own solid colour, so the
+     glow behind them shows through. Over #151515 these land at about #1f1f1e (Claude's input
+     box is #20201f) for surface and #262625 for hover / selected fills, and borders around #2b2b2a. */
+  --color-surface: rgb(250 249 245 / 0.045);
   /* What `surface` composites to over the page, but solid: content must not show through a menu */
-  --color-overlay: #131313;
-  --color-paper-2: rgb(255 255 255 / 0.06);
-  --color-line: rgb(255 255 255 / 0.3);
+  --color-overlay: #20201f;
+  --color-paper-2: rgb(250 249 245 / 0.08);
+  --color-line: rgb(250 249 245 / 0.11);
   /* The always-dark bands ("How it works", the sign-in panel) keep their navy in both themes:
      it is the one deliberate colour in the layout, not part of the neutral page. */
   --color-navy: #12172b;
   --color-navy-2: #1e2540;
-  --color-btn: #f0f0f0;
+  --color-btn: #f0efec;
   --color-btn-hover: #ffffff;
-  --color-on-btn: #0d0d0d;
+  --color-on-btn: #151515;
 
   --color-good: #4cc38a;
   --color-good-bg: #122a1c;
@@ -72,8 +73,8 @@ html[data-theme="dark"] {
   --color-bad-bg: #331919;
   --color-warn: #e2a64f;
   --color-warn-bg: #2e2211;
-  --color-mute: #a8a8a8;
-  --color-mute-bg: #1e1e1e;
+  --color-mute: #b0aea5;
+  --color-mute-bg: #2a2a28;
   --color-info: #6fa8dc;
   --color-info-bg: #152335;
 }
