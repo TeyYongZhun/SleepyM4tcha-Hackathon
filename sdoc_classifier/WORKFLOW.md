@@ -2,7 +2,10 @@
 
 Stage 1 of the SDOC pipeline sorts every incoming shipping-documentation email
 into one of five categories, so that the right emails move on to the
-SI-versus-BL comparison stage.
+SI-versus-BL comparison stage
+([`../sdoc_comparator/`](../sdoc_comparator/WORKFLOW.md)). The FastAPI gateway in
+`../backend/` runs this model for the website; see [section 8](#8-where-it-is-used).
+Setup and commands are in the [README](README.md).
 
 | Category | What the email is about | Share of dataset |
 |---|---|---|
@@ -12,8 +15,16 @@ SI-versus-BL comparison stage.
 | `GENERAL` | Operational notices, reports, HR/office news, automated bot messages | 60 / 520 |
 | `SPAM` | Phishing, prize/parcel scams, marketing | 40 / 520 |
 
+**In short, for the organisers:**
+
+- **What it does:** cleans each email, turns it into numeric clues, and lets a logistic regression pick the category. One documented rule sits on top: an SI + BL attachment pair means `BL_COMPARISON`.
+- **How well:** 520/520 on the supplied dataset, and 500/500 out-of-fold in cross-validation. The 20 attachment edge cases were never trained on and are all correct.
+- **Why you can trust the score, and its limit:** the cross-validation never scores an email with a model that saw it, and the edge cases are held out. But the data comes from a few templates, so the score shows fit to *this* data, not to arbitrary mail (section 7).
+- **Where to see it:** the three-pane inbox in the website, and `python -m src.evaluate` for the numbers.
+
 **Result:** 520/520 on the organiser's dataset and 500/500 in 5-fold
-cross-validation. Details are in [Results](#results).
+cross-validation. Details are in [Results](#6-results); how far that carries to
+real mail is in [Known limitations](#7-known-limitations-and-next-steps).
 
 ---
 
@@ -33,6 +44,11 @@ cross-validation. Details are in [Results](#results).
 Each stage passes a typed object to the next
 (`EmailRecord → CleanedEmail → Features → Prediction`, defined in
 `src/schema.py`), so no stage reaches back into the raw JSON.
+
+`predict.classify()` covers stages 4 and 5 for a list of `Features` and returns
+one `Prediction` each: `category`, `confidence` (0–1), `source` (`model`, `rule`
+or `error`) and `model_category` (what the model said before any override). The
+command line and the gateway both call it.
 
 We chose **supervised machine learning** over hand-written rules for three
 reasons:
@@ -126,6 +142,8 @@ SI file and a BL file**, it is `BL_COMPARISON`. This comes straight from the
 dataset documentation ("only BL_COMPARISON emails carry attachments"), so it
 outranks the model. Every case where the rule and the model disagree is
 logged. The count is **0**, which means the model learned this fact on its own.
+The rule sets confidence to 1.0 and `source` to `rule`; on the dataset it fires
+for 124 of the 520 emails.
 
 ---
 
@@ -184,14 +202,20 @@ BL_COMPARISON, and 45 times, all on SI_REQUEST.
 The model is trained on `email_001` to `email_500` only. The 20 attachment
 edge cases (`email_501` to `email_520`) are predicted but never trained on.
 
-| Test | Score |
-|---|---|
-| Organiser dataset, 520 emails | **520/520** |
-| 5-fold cross-validation, generated emails | **500/500** |
-| Official organiser scorer, Stage 1 macro-F1 | **1.000** |
+| Test | What it shows | Score |
+|---|---|---|
+| Organiser dataset, all 520 emails, saved model | The result on the data as supplied | **520/520** (macro-F1 1.000) |
+| 5-fold cross-validation, the 500 training emails | Each email scored by a model that never saw it | **500/500** (all five folds macro-F1 1.000) |
+| Edge cases `email_501` to `email_520` | Emails the model was never trained on | **20/20** |
 
-The official final score is 0.30 because classification is worth 30%. The other
-70% comes from the defect-comparison stage, which is out of scope here.
+All five categories are fully correct. The SI + BL rule decides 124 of the 520
+emails and the model the other 396. Re-run any of this with
+`python -m src.evaluate` (cross-validation) or `python -m src.predict` followed
+by `python -m src.evaluate --predictions out/predictions.json` (the saved model).
+
+This stage is scored on category alone. The SI-vs-BL comparison that follows it
+is measured separately, in the
+[comparator's workflow](../sdoc_comparator/WORKFLOW.md#results).
 
 ---
 
@@ -211,27 +235,59 @@ The official final score is 0.30 because classification is worth 30%. The other
   emails 5 times (`HANDWRITTEN_WEIGHT`) so the 500 template emails don't
   outvote them. Keep a separate labelled set that is never trained on, and
   score it with `python -m src.evaluate --labelled <file>`.
-- **Planned: a small LLM for low-confidence emails.** When the model's
-  confidence is below 0.55, a small LLM re-classifies the email. For real
-  company email, a **local model** (for example via Ollama) keeps email
-  content on our own machine and costs nothing; a cloud API such as Claude
-  Haiku is more accurate but sends email text to an outside service and is
-  paid per use.
+- **Low-confidence handling today.** `LOW_CONFIDENCE_THRESHOLD` (0.55, in
+  `config.py`) is applied by the gateway, not by this package: for
+  `POST /classify` a model prediction below it is reported as `GENERAL`, with
+  the model's own answer kept in `model_category` and `low_confidence` set.
+  `python -m src.predict` only lists those emails and changes nothing. This
+  hides confident wrong answers on real mail; it does not make them right.
+- **Planned: a small LLM for low-confidence emails.** Not built yet
+  (`Prediction.source` has room for `llm`). When the model's confidence is
+  below 0.55, a small LLM would re-classify the email. For real company email,
+  a **local model** (for example via Ollama) keeps email content on our own
+  machine and costs nothing; a cloud API such as Claude Haiku is more accurate
+  but sends email text to an outside service and is paid per use.
 
 ---
 
-## 8. Running it
+## 8. Where it is used
 
-From `sdoc_classifier/`, with the project's virtual environment:
+The model is loaded from `models/classifier.joblib` by the FastAPI gateway
+(`../backend/app.py`), which reuses the same chain the command line does:
+`loading.parse_record` → `features.featurize` → `predict.classify`.
+
+| Caller | What it classifies |
+|---|---|
+| `GET /emails`, `GET /emails/{id}` | The seeded 520-email inbox, classified once and then served from memory. Only `BL_COMPARISON` emails go on to the comparator. |
+| `POST /classify` | One message that isn't in the dataset. The website calls it for each real Gmail message. It returns `{category, confidence, model_category, low_confidence, summary}`, with the 0.55 threshold applied as described in section 7. |
+
+Two constraints follow from that:
+
+- **Retrain from `sdoc_classifier/`.** The saved model refers to its code by
+  module name (`src.pipeline`), and the gateway puts this directory on
+  `sys.path` so the name resolves. `python -m src.train` run here produces a
+  model that loads the same way; moving `src/` into a package would not.
+- **`confidence` stays 0 to 1.** The website shows it as a percentage.
+
+## 9. Running it
+
+Setup is in the [README](README.md). From `sdoc_classifier/`, with the
+repository's virtual environment:
 
 ```powershell
 ..\.venv\Scripts\python.exe -m pytest                     # 25 tests
 ..\.venv\Scripts\python.exe -m src.train                  # cross-validate, fit, save models/classifier.joblib
-..\.venv\Scripts\python.exe -m src.predict                # classify data/inbox -> out/submission.json
+..\.venv\Scripts\python.exe -m src.predict                # classify data/inbox -> out/submission.json + out/predictions.json
+..\.venv\Scripts\python.exe -m src.evaluate               # cross-validation only, saves nothing
 ..\.venv\Scripts\python.exe -m src.predict --inbox my_emails --out my_emails_out --show  # try your own emails
 ```
 
-## 9. Code map
+`train` and `evaluate` also take `--model svc` (the calibrated LinearSVC) and
+`--no-handwritten` (ignore `extra_data/`). Results are written to `out/`, which is
+git-ignored. `data/` and `models/` are committed, so a fresh clone runs without
+any setup beyond installing the requirements.
+
+## 10. Code map
 
 | File | Role |
 |---|---|
@@ -241,9 +297,12 @@ From `sdoc_classifier/`, with the project's virtual environment:
 | `src/cleaning.py` | Banner, thread, signature and greeting removal |
 | `src/patterns.py` | Keyword tables and the coded-subject discriminator |
 | `src/features.py` | Record → cleaned text + flag dictionary |
-| `src/pipeline.py` | TF-IDF + flags + Logistic Regression |
+| `src/pipeline.py` | TF-IDF + flags + Logistic Regression (or calibrated LinearSVC) |
 | `src/rules.py` | SI + BL attachment override and disagreement counter |
 | `src/train.py` | Cross-validation, final fit, save model |
-| `src/predict.py` | Classify an inbox, write submission, fault-tolerant per email |
+| `src/predict.py` | `classify()`; classify an inbox and write submission, fault-tolerant per email |
 | `src/evaluate.py` | Reports, confusion matrix, error dump, scoring files |
-| `tests/` | Cleaning and feature regression tests |
+| `tests/` | Cleaning and feature regression tests (25) |
+| `data/` | `inbox/` (520 emails) and `ground_truth.json`; `SDOC_DATA_DIR` points elsewhere |
+| `models/classifier.joblib` | The trained model (committed) |
+| `../backend/app.py` | The gateway that serves this model to the website |
