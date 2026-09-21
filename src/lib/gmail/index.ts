@@ -1,5 +1,5 @@
 import "server-only";
-import type { Email } from "../types";
+import type { Email, EmailCategory } from "../types";
 import { PAGE_SIZE } from "../paging";
 import { GmailError, gmailGet, gmailPost, mapPool } from "./api";
 import { enrich } from "./enrich";
@@ -18,14 +18,22 @@ const CONCURRENCY = 8;
 // it) costs no Gmail calls; after STORE_TTL_MS they are refetched so unread state
 // doesn't go stale.
 const STORE_TTL_MS = 10 * 60_000;
-const STORE_MAX = 1000;
+const STORE_MAX = 1500; // above COUNT_CAP, so counting the inbox never evicts what it just read
 type Store = Map<string, { at: number; email: Email }>;
 type Cursor = { at: number; tokens: (string | undefined)[]; total?: number };
 
 // On globalThis, not module scope: the pages and the /api/inbox route are bundled
 // separately and would each get their own copy, so they would never share a cache.
-const g = globalThis as unknown as { __wayboxGmail?: { stores: Map<string, Store>; cursors: Map<string, Cursor> } };
-const { stores, cursors } = (g.__wayboxGmail ??= { stores: new Map(), cursors: new Map() });
+type GmailState = {
+  stores: Map<string, Store>;
+  cursors: Map<string, Cursor>;
+  // optional: a dev server that hot-reloads this file still holds the older shape
+  counters?: Map<string, CountState>;
+};
+const g = globalThis as unknown as { __wayboxGmail?: GmailState };
+const gmailState: GmailState = (g.__wayboxGmail ??= { stores: new Map(), cursors: new Map() });
+const { stores, cursors } = gmailState;
+const counters = (gmailState.counters ??= new Map<string, CountState>());
 
 function storeFor(userKey: string) {
   let store = stores.get(userKey);
@@ -164,6 +172,122 @@ export async function getMessage(
   if (!email) return undefined;
   store.set(id, { at: Date.now(), email });
   return email;
+}
+
+// --- Per-category totals for the tab bar -------------------------------------------------
+//
+// Gmail only ever hands over a page at a time, and a message's category is decided by
+// reading it (subject, body, the classifier) -- so a total per category means reading the
+// whole inbox. That is done once in the background, into the same message store the tabs
+// already list from, so the number on a tab is always the number of emails that tab holds.
+// It never blocks a page: callers get whatever has been counted so far and ask again.
+
+/** Newest messages counted. Keeps a huge inbox inside Gmail's quota; past it, totals read "N+". */
+const COUNT_CAP = 1000;
+const COUNT_TTL_MS = 5 * 60_000;
+const COUNT_RETRY_MS = 60_000;
+
+export interface InboxCategoryCounts {
+  counts: Record<EmailCategory, number>;
+  done: boolean;
+  capped: boolean;
+}
+interface CountState {
+  /** When the current (or last) scan started */
+  at: number;
+  running: boolean;
+  failed: boolean;
+  /** What callers see. Grows during the first scan; after that only swaps when a rescan finishes. */
+  view?: InboxCategoryCounts;
+}
+
+const emptyCounts = (): Record<EmailCategory, number> => ({
+  bl_comparison: 0,
+  si_request: 0,
+  invoice_query: 0,
+  general: 0,
+  spam: 0,
+});
+
+async function scanInbox(token: string, userKey: string, state: CountState): Promise<void> {
+  const ids: string[] = [];
+  let next: string | undefined;
+  do {
+    const page = await gmailGet<{ messages?: { id: string }[]; nextPageToken?: string }>(
+      token,
+      "/messages",
+      {
+        labelIds: "INBOX",
+        maxResults: "500",
+        fields: "messages/id,nextPageToken",
+        ...(next ? { pageToken: next } : {}),
+      },
+    );
+    ids.push(...(page.messages ?? []).map((m) => m.id));
+    next = page.nextPageToken;
+  } while (next && ids.length < COUNT_CAP);
+  const capped = !!next || ids.length > COUNT_CAP;
+  const counted = ids.slice(0, COUNT_CAP);
+
+  const counts = emptyCounts();
+  // A rescan keeps showing the last full count until it has a new one; only the first scan
+  // shows its progress as it goes.
+  const showProgress = !state.view;
+  const publish = (done: boolean) => {
+    if (showProgress || done) state.view = { counts: { ...counts }, done, capped };
+  };
+
+  const store = storeFor(userKey);
+  const todo: string[] = [];
+  for (const id of counted) {
+    const held = store.get(id);
+    if (fresh(held)) counts[held!.email.category]++;
+    else todo.push(id);
+  }
+  publish(false);
+
+  let sincePublish = 0;
+  try {
+    await mapPool(todo, CONCURRENCY, async (id) => {
+      const email = await fetchMessage(token, id);
+      if (!email) return; // deleted since listing
+      store.set(id, { at: Date.now(), email });
+      counts[email.category]++;
+      if (++sincePublish % 10 === 0) publish(false);
+    });
+  } catch (e) {
+    // Quota or a dropped connection part-way: keep what was counted, but say it is a floor
+    console.warn("[gmail] counting the inbox stopped early:", e instanceof Error ? e.message : e);
+    state.failed = true;
+    if (showProgress || state.view) state.view = { counts: { ...counts }, done: true, capped: true };
+    return;
+  }
+  publish(true);
+}
+
+/**
+ * The per-category totals so far (null before the first scan has anything), starting or
+ * refreshing the background count when there is none or it has aged out. Never waits on Gmail.
+ */
+export function getInboxCounts(token: string, userKey: string): InboxCategoryCounts | null {
+  let state = counters.get(userKey);
+  if (!state) counters.set(userKey, (state = { at: 0, running: false, failed: false }));
+  const age = Date.now() - state.at;
+  if (!state.running && age > (state.failed ? COUNT_RETRY_MS : COUNT_TTL_MS)) {
+    const st = state;
+    st.running = true;
+    st.failed = false;
+    st.at = Date.now();
+    scanInbox(token, userKey, st)
+      .catch((e) => {
+        console.warn("[gmail] could not count the inbox:", e instanceof Error ? e.message : e);
+        st.failed = true;
+      })
+      .finally(() => {
+        st.running = false;
+      });
+  }
+  return state.view ?? null;
 }
 
 /**
