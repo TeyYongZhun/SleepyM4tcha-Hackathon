@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import Link from "next/link";
 import { useSelectedLayoutSegment } from "next/navigation";
 import { ChevronDown } from "lucide-react";
 import { CATEGORIES, type CategorySlug } from "@/lib/categories";
+import { useDetailsDismiss } from "@/lib/use-details-dismiss";
 import { Avatar } from "./avatar";
 import { Logo } from "./logo";
+import { NotificationBell } from "./notification-bell";
 import { ThemeToggle } from "./theme-toggle";
 import { useUserInfo } from "./user-provider";
 
@@ -23,28 +25,7 @@ export function Navbar({
   const displayName = user_info.name ?? user_info.email ?? "Account";
   const firstName = displayName.split(/\s+/)[0];
   const menu = useRef<HTMLDetailsElement>(null);
-
-  // A <details> menu stays open until its own summary is clicked again, so close it on a click
-  // anywhere else, and on Escape. Listening on pointerdown rather than click means it closes
-  // as the press lands, instead of only once the button under it has already been released.
-  useEffect(() => {
-    const closeIfOutside = (e: Event) => {
-      const el = menu.current;
-      if (el?.open && !el.contains(e.target as Node)) el.open = false;
-    };
-    const closeOnEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && menu.current?.open) menu.current.open = false;
-    };
-    document.addEventListener("pointerdown", closeIfOutside);
-    // Tabbing past the menu should dismiss it too; focus events don't bubble, so capture
-    document.addEventListener("focusin", closeIfOutside);
-    document.addEventListener("keydown", closeOnEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeIfOutside);
-      document.removeEventListener("focusin", closeIfOutside);
-      document.removeEventListener("keydown", closeOnEscape);
-    };
-  }, []);
+  useDetailsDismiss(menu);
 
   return (
     <header className="sticky top-0 z-30 shrink-0 border-b border-line bg-overlay">
@@ -80,6 +61,7 @@ export function Navbar({
         </nav>
 
         <div className="ml-auto flex items-center gap-1 lg:ml-0">
+          <NotificationBell />
           <ThemeToggle />
         <details ref={menu} className="group relative">
           <summary className="flex h-16 cursor-pointer list-none items-center gap-2 rounded-lg px-2 [&::-webkit-details-marker]:hidden">

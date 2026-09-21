@@ -1,6 +1,7 @@
 "use client";
 
 import { AlertTriangle, CheckCheck, CheckCircle2, UserCheck, type LucideIcon } from "lucide-react";
+import { addNotification } from "@/lib/notifications";
 import { setResolved, useResolvedIds } from "@/lib/resolved";
 import type { ComparisonStatus } from "@/lib/types";
 
@@ -16,13 +17,25 @@ export const canResolve = (status?: ComparisonStatus) =>
   status === "MISMATCH" || status === "NEEDS_REVIEW";
 
 /** Sits beside the category in the summary header; gone once resolved. */
-export function ResolveButton({ emailId, status }: { emailId: string; status?: ComparisonStatus }) {
+export function ResolveButton({
+  emailId,
+  subject,
+  status,
+}: {
+  emailId: string;
+  /** Named in the notification, so the list says which email was cleared. */
+  subject: string;
+  status?: ComparisonStatus;
+}) {
   const resolved = useResolvedIds().has(emailId);
   if (!canResolve(status) || resolved) return null;
   return (
     <button
       type="button"
-      onClick={() => setResolved(emailId, true)}
+      onClick={() => {
+        setResolved(emailId, true);
+        addNotification("resolved", subject);
+      }}
       className="ml-auto inline-flex shrink-0 items-center gap-1.5 rounded-lg bg-btn px-3 py-1.5 text-[12px] font-semibold text-on-btn btn-lift hover:bg-btn-hover"
     >
       <CheckCheck size={14} aria-hidden />
@@ -34,11 +47,14 @@ export function ResolveButton({ emailId, status }: { emailId: string; status?: C
 /** The verdict box. Once a mismatch / needs-review is resolved it turns into a gray "Resolved" note. */
 export function StatusBox({
   emailId,
+  subject,
   status,
   reasonText,
   defectText,
 }: {
   emailId: string;
+  /** Named in the notification when the flag is put back. */
+  subject: string;
   status: ComparisonStatus;
   reasonText?: string;
   defectText?: string;
@@ -56,7 +72,10 @@ export function StatusBox({
         </div>
         <button
           type="button"
-          onClick={() => setResolved(emailId, false)}
+          onClick={() => {
+            setResolved(emailId, false);
+            addNotification("reopened", subject);
+          }}
           className="shrink-0 text-[11.5px] font-semibold underline underline-offset-2 hover:opacity-80"
         >
           Reopen

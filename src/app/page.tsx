@@ -182,7 +182,7 @@ export default async function LandingPage() {
 
         <section
           id="how-it-works"
-          className="band-navy flex min-h-[calc(65svh-6rem)] snap-start scroll-mt-4 flex-col justify-center bg-navy px-5 py-16 sm:px-8 lg:px-16"
+          className="flex min-h-[calc(65svh-6rem)] snap-start scroll-mt-4 flex-col justify-center bg-navy px-5 py-16 sm:px-8 lg:px-16"
         >
           <div className="mx-auto max-w-[1200px]">
             <h2 className="text-[32px] font-semibold text-white">How it works</h2>

@@ -205,6 +205,24 @@ h3 {
   }
 }
 
+/* The reply toast easing in from the top corner (components/toast.tsx) */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility toast-in {
+  animation: toast-in 220ms ease-out both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
 /* Scrollable, but with the scrollbar hidden */
 @utility no-scrollbar {
   scrollbar-width: none;

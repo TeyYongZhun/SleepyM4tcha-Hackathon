@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Loader2, Reply, Sparkles } from "lucide-react";
 import { setAiDraft, useAiDraft } from "@/lib/ai-draft";
 import { showDraftLoading } from "@/lib/draft-loading";
-import { ReplyResult, type Outcome } from "./reply-result";
+import { addNotification, updateLatest } from "@/lib/notifications";
 
 /** How often the Sent mail is checked while the Gmail window is open. */
 const POLL_MS = 2000;
@@ -20,6 +20,8 @@ const RETURN_GUARD_MS = 1500;
  */
 const DELIVERY_WINDOW_MS = 12_000;
 const BOUNCE_POLL_MS = 2000;
+/** The demo has nothing to wait on, so it just pauses long enough to be read. */
+const DEMO_DELIVERY_MS = 2500;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
@@ -53,23 +55,16 @@ export function ReplyBar({
   href,
   emailId,
   to,
-  backHref,
 }: {
   href: string;
   emailId: string;
-  /** The address being replied to (also what the Sent check looks for). */
+  /** The address being replied to, and the fallback for what the result is reported against. */
   to: string;
-  /** The mailbox to return to after a reply. */
-  backHref: string;
 }) {
   const aiDraft = useAiDraft();
   const [busy, setBusy] = useState(false);
   const [waiting, setWaiting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [outcome, setOutcome] = useState<Outcome | null>(null);
-  const [hold, setHold] = useState(false);
-  /** Where the reply went, once known: the address in Gmail's To box, which they may have changed. */
-  const [recipient, setRecipient] = useState<string | null>(null);
   const cancelWatch = useRef<(() => void) | null>(null);
 
   // Leaving the page ends the watch
@@ -99,10 +94,7 @@ export function ReplyBar({
     };
     cancelWatch.current = stop;
 
-    const finish = (result: Outcome | null) => {
-      stop();
-      if (result) setOutcome(result);
-    };
+    const finish = () => stop();
 
     void (async () => {
       const started = startedAt;
@@ -196,23 +188,24 @@ export function ReplyBar({
             } catch {
               // nothing to do; they can close it themselves
             }
-            // Say it went out straight away, naming wherever it actually went, but hold the
-            // countdown while we see whether it comes back undelivered -- redirecting first
-            // would hide that entirely.
-            if (sentTo) setRecipient(sentTo);
-            setOutcome("sent");
-            setHold(true);
+            // Report that it left the account straight away, naming wherever it actually went,
+            // then keep the toast open while we watch for it coming back undelivered.
+            const address = sentTo || to;
+            addNotification("sent", address, true);
+
             const until = Date.now() + DELIVERY_WINDOW_MS;
             while (!cancelled && Date.now() < until) {
               await sleep(BOUNCE_POLL_MS);
               if (cancelled) return;
-              if ((await pollBounce(sentTo || to)) === "new") {
-                setHold(false);
-                return finish("bounced");
+              if ((await pollBounce(address)) === "new") {
+                updateLatest("bounced", address);
+                return finish();
               }
             }
-            setHold(false);
-            return finish(null); // nothing came back: the "sent" screen stands
+            // Nothing came back in the window, so the receiving server took it. That is the
+            // furthest mail can be followed from outside: nobody rejected it.
+            updateLatest("delivered", address);
+            return finish();
           }
         }
 
@@ -220,16 +213,26 @@ export function ReplyBar({
           // The demo and backend inboxes have no sent mail to look in, and their senders are
           // invented addresses anyway, so there is nothing to verify against. Finishing with
           // the compose window -- closing it, or coming back here -- is taken as sent, which
-          // is what the demo is there to show.
-          if (closed || cameBack) return finish("sent");
+          // is what the demo is there to show. It runs through the same two steps so the demo
+          // looks like the real thing, just on a timer rather than on Gmail.
+          if (closed || cameBack) {
+            addNotification("sent", to, true);
+            await sleep(DEMO_DELIVERY_MS);
+            if (cancelled) return;
+            updateLatest("delivered", to);
+            return finish();
+          }
         } else if (closed && trustClosed) {
           // The window is genuinely gone. Keep looking a while longer -- sent mail can lag a
           // few seconds behind the click -- then report what was found.
           closedAt ||= Date.now();
-          if (Date.now() - closedAt > CONFIRM_MS) return finish("not-sent");
+          if (Date.now() - closedAt > CONFIRM_MS) {
+            addNotification("not-sent", to);
+            return finish();
+          }
         }
       }
-      finish(null);
+      finish();
     })();
   }
 
@@ -239,8 +242,6 @@ export function ReplyBar({
     e.preventDefault();
     if (busy) return;
     setError(null);
-    setOutcome(null);
-    setRecipient(null);
 
     // A compact popup window, centred over this one, so Send doesn't leave a Gmail mailbox
     // sitting in a full tab afterwards.
@@ -332,16 +333,6 @@ export function ReplyBar({
         </div>
       </div>
 
-      {outcome && (
-        <ReplyResult
-          key={outcome}
-          outcome={outcome}
-          to={recipient ?? to}
-          backHref={backHref}
-          hold={hold}
-          onStay={() => setOutcome(null)}
-        />
-      )}
     </>
   );
 }
