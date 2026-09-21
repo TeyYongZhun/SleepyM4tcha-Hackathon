@@ -30,6 +30,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     // suppressHydrationWarning: the script above sets data-theme before React hydrates
     <html
       lang="en"
+      // globals.css sets scroll-behavior: smooth for the landing page's anchors. Telling the
+      // router about it lets it jump straight to the top on a route change instead of
+      // animating there, which is what the smooth scroll was never meant to cover.
+      data-scroll-behavior="smooth"
       className={`${plex.variable} ${grotesk.variable} h-full antialiased`}
       suppressHydrationWarning
     >

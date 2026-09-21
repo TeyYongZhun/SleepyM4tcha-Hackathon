@@ -202,6 +202,10 @@ export async function clearImport(): Promise<void> {
     // The store lists 1,000 at a time. An import made file by file is more than that, and
     // taking only the first page left the rest behind -- the manifest, which sorts last, among
     // them, so "back to the sample" quietly did nothing.
+    //
+    // By URL. `del` passes whatever it is given straight to the API as `urls`, without the
+    // pathname handling `get` has, so a bare pathname is rejected and the delete throws --
+    // taking Import down with Clear, since both start by emptying what is there.
     const urls: string[] = [];
     let cursor: string | undefined;
     do {
