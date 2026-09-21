@@ -20,6 +20,10 @@ import { demoSource } from "@/lib/demo/source";
  * Vercel Blob when a store is attached. `import-store.ts` decides; this route does not care.
  */
 
+// Reading the zips and storing the result is quick now, but it is still the one request that
+// does real work, so it is given room rather than the platform's default.
+export const maxDuration = 60;
+
 // Everything here is served back from the app's own origin, so the list is what the readers
 // understand plus common harmless documents -- never .html, .svg or .js, which would run.
 const TYPES: Record<string, string> = {
