@@ -46,7 +46,11 @@ export function SummaryPanel({ email }: { email: Email }) {
               <p className="text-[11.5px] text-ink-soft">{confidence}% confidence</p>
             )}
           </div>
-          <ResolveButton emailId={email.email_id} status={email.status} />
+          <ResolveButton
+            emailId={email.email_id}
+            subject={email.subject}
+            status={email.status}
+          />
         </div>
 
         {email.category === "bl_comparison" && !email.status && (
@@ -62,6 +66,7 @@ export function SummaryPanel({ email }: { email: Email }) {
         {email.status && (
           <StatusBox
             emailId={email.email_id}
+            subject={email.subject}
             status={email.status}
             reasonText={email.review_reason ? REVIEW_REASON_TEXT[email.review_reason] : undefined}
             defectText={

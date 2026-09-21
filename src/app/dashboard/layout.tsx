@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { SignOutButton } from "@/components/auth-buttons";
 import { Navbar } from "@/components/navbar";
+import { ToastHost } from "@/components/toast";
 import { UserProvider } from "@/components/user-provider";
 import { countByCategory, getEmails, usesGmail } from "@/lib/emails";
 import { getUserInfo } from "@/lib/user";
@@ -23,6 +24,9 @@ export default async function DashboardLayout({
       <div className="flex h-dvh flex-col overflow-hidden bg-paper">
         <Navbar counts={counts} signOutSlot={<SignOutButton />} />
         <main className="min-h-0 flex-1">{children}</main>
+        {/* Once for the whole dashboard: it announces whatever lands in the notification
+            store, and stays put while you move between emails */}
+        <ToastHost />
       </div>
     </UserProvider>
   );

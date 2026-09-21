@@ -137,30 +137,6 @@ html[data-theme="dark"] :is(body, .bg-paper) {
   background-attachment: fixed;
 }
 
-/* Landing page, dark theme: the coloured bands rise out of the page and sink back into it
-   instead of starting and stopping at a hard line, so black -> navy -> black -> copper reads
-   as one surface. The blend lives inside the coloured bands because everything written on
-   them is white, which stays legible the whole way across the ramp. Light mode keeps its hard
-   edges on purpose: there the bands are dark blocks on cream, and their text would disappear
-   the moment the ramp reached the page colour. */
-html[data-theme="dark"] .band-navy {
-  background-image: linear-gradient(
-    180deg,
-    var(--color-paper) 0%,
-    var(--color-navy) 9%,
-    var(--color-navy) 93%,
-    var(--color-paper) 100%
-  );
-}
-html[data-theme="dark"] .band-cta {
-  background-image: linear-gradient(
-    180deg,
-    var(--color-paper) 0%,
-    var(--color-copper) 15%,
-    var(--color-copper) 85%,
-    var(--color-paper) 100%
-  );
-}
 
 /* The sheen across the top of a pane of glass. Panels only -- `paper-2` is also avatars and
    hover fills, where a gradient would just look like a smudge. */
@@ -217,6 +193,24 @@ h3 {
     &:hover {
       transform: none;
     }
+  }
+}
+
+/* The reply toast easing in from the top corner (components/toast.tsx) */
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+@utility toast-in {
+  animation: toast-in 220ms ease-out both;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
   }
 }
 

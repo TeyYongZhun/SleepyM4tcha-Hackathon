@@ -38,12 +38,7 @@ export default async function EmailPage({
           <EmailViewer email={email} />
         </>
       }
-      leftFooter={<ReplyBar
-          href={replyUrl}
-          emailId={email.email_id}
-          to={email.from.email}
-          backHref={`/dashboard/${meta.slug}`}
-        />}
+      leftFooter={<ReplyBar href={replyUrl} emailId={email.email_id} to={email.from.email} />}
       right={<SummaryPanel email={email} />}
     />
   );

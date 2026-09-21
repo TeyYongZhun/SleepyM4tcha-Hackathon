@@ -182,7 +182,7 @@ export default async function LandingPage() {
 
         <section
           id="how-it-works"
-          className="band-navy flex min-h-[calc(65svh-6rem)] snap-start scroll-mt-4 flex-col justify-center bg-navy px-5 py-16 sm:px-8 lg:px-16"
+          className="flex min-h-[calc(65svh-6rem)] snap-start scroll-mt-4 flex-col justify-center bg-navy px-5 py-16 sm:px-8 lg:px-16"
         >
           <div className="mx-auto max-w-[1200px]">
             <h2 className="text-[32px] font-semibold text-white">How it works</h2>
@@ -224,7 +224,7 @@ export default async function LandingPage() {
         </section>
 
         <div className="flex min-h-[calc(65svh-6rem)] snap-start flex-col">
-          <section className="band-cta flex flex-1 flex-col items-center justify-center bg-copper px-5 py-16 text-center sm:px-8">
+          <section className="flex flex-1 flex-col items-center justify-center bg-copper px-5 py-16 text-center sm:px-8">
             <h2 className="mx-auto mb-7 max-w-[640px] text-[28px] font-semibold text-white">
               Stop digging through your inbox for tracking numbers.
             </h2>
