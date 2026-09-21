@@ -186,11 +186,15 @@ export async function getMessage(
 /** Newest messages counted. Keeps a huge inbox inside Gmail's quota; past it, totals read "N+". */
 const COUNT_CAP = 1000;
 // A recount is cheap -- a list call or two, plus only the messages not seen before -- so the
-// totals are never allowed to get much older than a minute, and a page load asks for a
-// fresh one (COUNT_MIN_GAP_MS only stops a stack of reloads from each starting a scan).
+// totals are never allowed to get much older than a minute, and a page load recounts at once.
 const COUNT_TTL_MS = 60_000;
-const COUNT_MIN_GAP_MS = 5_000;
 const COUNT_RETRY_MS = 60_000;
+/**
+ * How long a page load will wait for its recount before showing the previous numbers. On a
+ * reload the page has already read the new mail, so the recount is just the list call(s) and
+ * lands well inside this; a first count of a cold inbox does not, and reports progress instead.
+ */
+const COUNT_WAIT_MS = 2_500;
 
 export interface InboxCategoryCounts {
   counts: Record<EmailCategory, number>;
@@ -204,6 +208,8 @@ interface CountState {
   failed: boolean;
   /** What callers see. Grows during the first scan; after that only swaps when a rescan finishes. */
   view?: InboxCategoryCounts;
+  /** The scan in flight, so a caller that wants the newest numbers can wait for it */
+  inflight?: Promise<void>;
 }
 
 const emptyCounts = (): Record<EmailCategory, number> => ({
@@ -279,30 +285,57 @@ async function scanInbox(token: string, userKey: string, state: CountState): Pro
  * While a recount is running the last full totals are still returned, marked not `done`, so
  * the caller knows to ask again shortly.
  */
-export function getInboxCounts(
-  token: string,
-  userKey: string,
-  opts: { fresh?: boolean } = {},
-): InboxCategoryCounts | null {
+function scanIfDue(token: string, userKey: string, fresh: boolean): CountState {
   let state = counters.get(userKey);
   if (!state) counters.set(userKey, (state = { at: 0, running: false, failed: false }));
-  const age = Date.now() - state.at;
-  const wait = state.failed ? COUNT_RETRY_MS : opts.fresh ? COUNT_MIN_GAP_MS : COUNT_TTL_MS;
-  if (!state.running && age > wait) {
+  // `fresh` is a page load or a return to the tab: count now rather than wait out the TTL.
+  // No floor beneath it -- `running` is what stops two scans overlapping, and a floor is
+  // exactly what left a reload showing the previous numbers until the next TTL came round.
+  const wait = state.failed ? COUNT_RETRY_MS : fresh ? 0 : COUNT_TTL_MS;
+  if (!state.running && Date.now() - state.at >= wait) {
     const st = state;
     st.running = true;
     st.failed = false;
     st.at = Date.now();
-    scanInbox(token, userKey, st)
+    st.inflight = scanInbox(token, userKey, st)
       .catch((e) => {
         console.warn("[gmail] could not count the inbox:", e instanceof Error ? e.message : e);
         st.failed = true;
       })
       .finally(() => {
         st.running = false;
+        st.inflight = undefined;
       });
   }
-  return state.view ? { ...state.view, done: state.view.done && !state.running } : null;
+  return state;
+}
+
+/** Whatever has been counted, marked not done while a scan is in flight. */
+const snapshot = (state: CountState): InboxCategoryCounts | null =>
+  state.view ? { ...state.view, done: state.view.done && !state.running } : null;
+
+export function getInboxCounts(token: string, userKey: string): InboxCategoryCounts | null {
+  return snapshot(scanIfDue(token, userKey, false));
+}
+
+/**
+ * The totals for a page load: recounts at once and waits briefly for that to finish, so the
+ * tabs show the inbox as it is now rather than as it was before the new mail arrived. Falls
+ * back to whatever has been counted if the scan is slower than COUNT_WAIT_MS.
+ */
+export async function getInboxCountsNow(
+  token: string,
+  userKey: string,
+): Promise<InboxCategoryCounts | null> {
+  const state = scanIfDue(token, userKey, true);
+  if (state.inflight) {
+    let timer: ReturnType<typeof setTimeout>;
+    await Promise.race([
+      state.inflight,
+      new Promise<void>((r) => (timer = setTimeout(r, COUNT_WAIT_MS))),
+    ]).finally(() => clearTimeout(timer!));
+  }
+  return snapshot(state);
 }
 
 /**

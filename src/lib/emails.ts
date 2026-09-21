@@ -8,6 +8,7 @@ import { routes } from "./api/routes";
 import { loadDemoEmail, loadDemoEmails } from "./demo/load";
 import {
   getInboxCounts as getGmailCounts,
+  getInboxCountsNow as getGmailCountsNow,
   getInboxPage as getGmailPage,
   getMessage,
   type InboxPage,
@@ -160,7 +161,11 @@ export function filterEmails(emails: Email[], slug: CategorySlug): Email[] {
 export async function getLiveCounts(opts: { fresh?: boolean } = {}): Promise<InboxCounts | null> {
   if (!(await usesGmail())) return null;
   const session = await auth();
-  const snap = getGmailCounts(session!.accessToken!, session!.user.id, opts);
+  const token = session!.accessToken!;
+  const userKey = session!.user.id;
+  const snap = opts.fresh
+    ? await getGmailCountsNow(token, userKey)
+    : getGmailCounts(token, userKey);
   const counts = {} as Record<CategorySlug, number>;
   let all = 0;
   for (const { slug, category } of CATEGORIES) {
