@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import { onScopeChange, scopedKey } from "./store-scope";
 
 /**
  * The notifications behind the bell in the navbar: every reply result that has been reported,
@@ -11,7 +12,7 @@ import { useSyncExternalStore } from "react";
  * so the list survives a reload, and capped -- this is a recent-activity list, not an archive.
  */
 
-const KEY = "wayboxai:notifications";
+const KEY_BASE = "wayboxai:notifications";
 const LIMIT = 30;
 
 /** How a reply ended up. Also what the toast shows (components/toast.tsx). */
@@ -42,7 +43,7 @@ let cacheRaw: string | null = null;
 function read(): Notification[] {
   let raw: string | null = null;
   try {
-    raw = localStorage.getItem(KEY);
+    raw = localStorage.getItem(scopedKey(KEY_BASE));
   } catch {
     return cache; // private mode: whatever this session has built up
   }
@@ -64,7 +65,7 @@ function write(next: Notification[]) {
   cache = next.slice(0, LIMIT);
   cacheRaw = JSON.stringify(cache);
   try {
-    localStorage.setItem(KEY, cacheRaw);
+    localStorage.setItem(scopedKey(KEY_BASE), cacheRaw);
   } catch {
     // private mode: it just won't survive a reload
   }
@@ -77,6 +78,14 @@ function subscribe(onChange: () => void) {
 }
 
 const EMPTY: Notification[] = [];
+
+// Signing into another account: forget this one's list, then let subscribers re-read once the
+// render that changed the scope has finished.
+onScopeChange(() => {
+  cache = [];
+  cacheRaw = null;
+  queueMicrotask(() => listeners.forEach((l) => l()));
+});
 
 /** Newest first. */
 export const useNotifications = () => useSyncExternalStore(subscribe, read, () => EMPTY);

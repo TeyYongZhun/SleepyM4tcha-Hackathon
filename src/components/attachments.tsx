@@ -15,13 +15,41 @@ import {
   Image as ImageIcon,
 } from "lucide-react";
 import { formatBytes } from "@/lib/format";
-import type { Attachment } from "@/lib/types";
+import type { Attachment, ShipmentDocument } from "@/lib/types";
 
 const isImage = (a: Attachment) => a.mime_type.startsWith("image/");
 const isPdf = (a: Attachment) => a.mime_type === "application/pdf";
 const isText = (a: Attachment) => a.mime_type === "text/plain";
 const isSheet = (a: Attachment) => a.mime_type.includes("spreadsheet");
 const hasPreview = (a: Attachment) => isImage(a) || isPdf(a) || isText(a);
+
+/**
+ * What the file turned out to be when it was read, which is not always what it is called:
+ * a file named ..._BL.txt holding a packing list is exactly the case the SI/BL check is
+ * there to catch. Without this the list shows only the names, so a correct "not an SI or BL"
+ * verdict looks like the check failing to spot a BL that is sitting right there.
+ */
+function KindBadge({ doc }: { doc?: ShipmentDocument }) {
+  if (!doc) return null;
+  const tone =
+    doc.kind === "OTHER"
+      ? "bg-warn-bg text-warn"
+      : doc.readable
+        ? "bg-good-bg text-good"
+        : "bg-bad-bg text-bad";
+  const label = !doc.readable
+    ? "Unreadable"
+    : doc.kind === "OTHER"
+      ? "Not an SI or BL"
+      : `Read as ${doc.kind}`;
+  return (
+    <span
+      className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ${tone}`}
+    >
+      {label}
+    </span>
+  );
+}
 
 /** PDFs get the design's red tile; everything else a neutral one. */
 function FileTile({ attachment: a }: { attachment: Attachment }) {
@@ -69,10 +97,13 @@ const ICON_LINK =
 
 function AttachmentCard({
   attachment: a,
+  doc,
   open,
   onToggle,
 }: {
   attachment: Attachment;
+  /** What reading the file said it was, when it was one of the ones analysed. */
+  doc?: ShipmentDocument;
   open: boolean;
   onToggle: () => void;
 }) {
@@ -100,7 +131,10 @@ function AttachmentCard({
           )}
           <FileTile attachment={a} />
           <span className="min-w-0 flex-1">
-            <span className="block truncate text-xs font-semibold">{a.filename}</span>
+            <span className="flex items-center gap-2">
+              <span className="min-w-0 truncate text-xs font-semibold">{a.filename}</span>
+              <KindBadge doc={doc} />
+            </span>
             <span className="block text-[10.5px] text-ink-soft">
               {formatBytes(a.size)} · {a.mime_type.split("/").pop()}
               {!previewable && " · no preview"}
@@ -136,7 +170,15 @@ function AttachmentCard({
   );
 }
 
-export function Attachments({ attachments }: { attachments: Attachment[] }) {
+export function Attachments({
+  attachments,
+  documents,
+}: {
+  attachments: Attachment[];
+  /** The analysed SI/BL documents, matched to their attachment by filename. */
+  documents?: ShipmentDocument[];
+}) {
+  const byFilename = new Map((documents ?? []).map((d) => [d.filename, d]));
   // Track which ones are minimized; everything starts expanded
   const [minimized, setMinimized] = useState<Set<string>>(new Set());
 
@@ -180,6 +222,7 @@ export function Attachments({ attachments }: { attachments: Attachment[] }) {
           <AttachmentCard
             key={a.id}
             attachment={a}
+            doc={byFilename.get(a.filename)}
             open={!minimized.has(a.id)}
             onToggle={() => toggle(a.id)}
           />

@@ -1,4 +1,4 @@
-import { REVIEW_REASON_TEXT, labelFor } from "./shipment";
+import { labelFor, reviewReasonText } from "./shipment";
 import type { Email, ShipmentFieldKey } from "./types";
 
 /** What the pipeline already worked out about an email, as text for a prompt (drafts, summaries). */
@@ -22,7 +22,7 @@ export function emailContext(email: Email): string {
   } else if (email.status === "NEEDS_REVIEW") {
     lines.push(
       `SI vs BL check: could not be completed (${
-        (email.review_reason && REVIEW_REASON_TEXT[email.review_reason]) || "needs review"
+        reviewReasonText(email) || "needs review"
       })`,
     );
   } else if (email.status === "OK") {

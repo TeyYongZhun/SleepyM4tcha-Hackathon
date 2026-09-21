@@ -1,7 +1,7 @@
 import { AlertTriangle, CheckCircle2, MinusCircle, XCircle } from "lucide-react";
 import {
   labelFor,
-  REVIEW_REASON_TEXT,
+  reviewReasonText,
   SHIPMENT_FIELDS,
   summarizeShipment,
   type DocCheck,
@@ -147,9 +147,8 @@ export function ShipmentChecklist({ email }: { email: Email }) {
       : email.status === "NEEDS_REVIEW"
         ? {
             tone: "warn",
-            detail: email.review_reason
-              ? REVIEW_REASON_TEXT[email.review_reason]
-              : `${unsure.length} field(s) could not be checked`,
+            detail:
+              reviewReasonText(email) ?? `${unsure.length} field(s) could not be checked`,
           }
         : {
             tone: "ok",

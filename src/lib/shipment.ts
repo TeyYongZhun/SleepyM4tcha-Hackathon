@@ -35,13 +35,40 @@ export const SHIPMENT_FIELDS: {
   { key: "bl_number", label: "B/L No.", siRequired: false, blRequired: true },
 ];
 
-/** Plain-English reason a pair needs a person. Shared by the checklist and the summary panel. */
+/**
+ * Plain-English reason a pair needs a person. Prefer `reviewReasonText` below, which picks the
+ * right wording for the email in hand; this is the wording when nothing else is known.
+ */
 export const REVIEW_REASON_TEXT: Record<ReviewReason, string> = {
   missing_attachment: "only one of the SI / BL was received",
   unreadable: "a document could not be read (empty, corrupt, or a scan with no text)",
   wrong_doc_type: "an attachment is not an SI or BL",
   missing_value: "a compared field is blank on one side",
 };
+
+/**
+ * Why this particular email needs a person, in words that match what actually arrived.
+ *
+ * `missing_attachment` covers two different situations: one half of the pair turned up, or the
+ * email talks about documents and none turned up at all. Saying "only one of the SI / BL was
+ * received" about an email with no attachments is simply untrue, and it is repeated into the
+ * reply draft, so it has to follow the attachments rather than the reason code alone.
+ */
+export function reviewReasonText(email: Email): string | undefined {
+  const reason = email.review_reason;
+  if (!reason) return undefined;
+  if (reason === "missing_attachment" && email.attachments.length === 0) {
+    return "the documents it refers to were not attached";
+  }
+  // Name the file. A misleading filename is exactly what this catches -- ..._BL.txt holding a
+  // packing list -- so "an attachment is not an SI or BL" reads like the check went wrong
+  // unless it says which file it means.
+  if (reason === "wrong_doc_type") {
+    const odd = email.shipment_documents?.find((d) => d.kind === "OTHER");
+    if (odd) return `${odd.filename} is not an SI or BL, whatever its name suggests`;
+  }
+  return REVIEW_REASON_TEXT[reason];
+}
 
 /** Same reasons in a few words, for list rows where the sentence above won't fit. */
 export const REVIEW_REASON_SHORT: Record<ReviewReason, string> = {

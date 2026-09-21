@@ -45,7 +45,7 @@ export function EmailViewer({ email }: { email: Email }) {
 
       <EmailBody body={email.body} type={email.body_type} />
 
-      <Attachments attachments={email.attachments} />
+      <Attachments attachments={email.attachments} documents={email.shipment_documents} />
     </article>
   );
 }
