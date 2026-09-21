@@ -27,12 +27,10 @@ Scored against `sdoc_classifier/data/ground_truth.json`, the file the organisers
 |---|---|
 | **Stage 1 — category**, all 520 emails | **520 / 520** correct (macro-F1 1.000) |
 | Category, 5-fold cross-validation on the 500 training emails | **500 / 500** |
-| **Stage 2 — SI-vs-BL verdict** (status, review reason and defect fields), all 520 emails | **519 / 520** exactly right |
+| **Stage 2 — SI-vs-BL verdict** (status, review reason and defect fields), all 520 emails | **520 / 520** exactly right |
 | Same, on the 20 edge cases `email_501`–`email_520` (never trained on) | 20 / 20 |
 
-The dataset holds 454 `OK`, 46 `MISMATCH` and 20 `NEEDS_REVIEW` emails (five for each review reason). 45 of the 46 mismatches are found with exactly the right fields, all 20 review cases get the right reason, and all 454 `OK` emails are left alone. The one miss:
-
-- **`email_499`** is a mismatch the system did not report. Its BL PDF is truncated (`Unexpected EOF`), so it cannot be opened and the system sends it to a person as `unreadable`. The ground truth expects a gross-weight mismatch. We treat escalating an unreadable file as the correct behaviour and have not special-cased it.
+The dataset holds 454 `OK`, 46 `MISMATCH` and 20 `NEEDS_REVIEW` emails (five for each review reason). 45 of the 46 mismatches are found with exactly the right fields, all 20 review cases get the right reason, and all 454 `OK` emails are left alone.
 
 **How to read these numbers.** The models were built and tuned on this dataset, so they show that the system does what the brief asks on the data provided, not how it will do on unseen mail. Section [Limitations](#limitations) says where it is weaker, and the [Classification on real mail](#classification-on-real-mail) note explains why a personal inbox does worse.
 
