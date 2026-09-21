@@ -15,12 +15,17 @@ const CONCURRENCY = 8;
 
 
 // Messages already loaded, per user. Going back to a page (or opening an email from
-// it) costs no Gmail calls; after STORE_TTL_MS they are refetched so unread state
-// doesn't go stale.
-const STORE_TTL_MS = 10 * 60_000;
+// it) costs no Gmail calls. A message's content never changes, so this is long: the cost of
+// it expiring is re-reading the whole page (and every attachment on it), which is what made
+// the first click after a pause take seconds. What can change -- the unread mark -- is kept
+// right by the app itself (opening an email clears it) and by the Refresh button.
+const STORE_TTL_MS = 60 * 60_000;
+/** How long the newest page's list of ids (and the inbox total) may be reused when switching tabs. */
+const LISTING_TTL_MS = 60_000;
 const STORE_MAX = 1500; // above COUNT_CAP, so counting the inbox never evicts what it just read
 type Store = Map<string, { at: number; email: Email }>;
 type Cursor = { at: number; tokens: (string | undefined)[]; total?: number };
+type Listing = { at: number; ids: string[]; next?: string; total?: number };
 
 // On globalThis, not module scope: the pages and the /api/inbox route are bundled
 // separately and would each get their own copy, so they would never share a cache.
@@ -29,11 +34,13 @@ type GmailState = {
   cursors: Map<string, Cursor>;
   // optional: a dev server that hot-reloads this file still holds the older shape
   counters?: Map<string, CountState>;
+  listings?: Map<string, Listing>;
 };
 const g = globalThis as unknown as { __wayboxGmail?: GmailState };
 const gmailState: GmailState = (g.__wayboxGmail ??= { stores: new Map(), cursors: new Map() });
 const { stores, cursors } = gmailState;
 const counters = (gmailState.counters ??= new Map<string, CountState>());
+const listings = (gmailState.listings ??= new Map<string, Listing>());
 
 function storeFor(userKey: string) {
   let store = stores.get(userKey);
@@ -102,14 +109,22 @@ export async function getInboxPage(
      * through stay held, so a refresh costs one page of calls, not the whole inbox.
      */
     refresh?: boolean;
+    /**
+     * A tab switch: page 1 was read moments ago, so reuse its list of ids and total instead of
+     * asking Gmail again. Every tab shows the same page of the inbox, so switching is free.
+     */
+    reuse?: boolean;
     retried?: boolean;
   } = {},
 ): Promise<InboxPage> {
-  const { refresh = false, retried = false } = opts;
+  const { refresh = false, retried = false, reuse = false } = opts;
   let page = Math.max(1, Math.floor(requested) || 1);
   // New mail shifts every page boundary along, so held page tokens (and the total) are no
   // longer trustworthy once we go back to Gmail for the newest page.
-  if (refresh) cursors.delete(userKey);
+  if (refresh) {
+    cursors.delete(userKey);
+    listings.delete(userKey);
+  }
   let cur = cursors.get(userKey);
   if (!cur || Date.now() - cur.at > CURSOR_TTL_MS) {
     cur = { at: Date.now(), tokens: [undefined] };
@@ -118,35 +133,45 @@ export async function getInboxPage(
 
   let ids: string[];
   let next: string | undefined;
-  try {
-    while (cur.tokens.length < page) {
-      const r = await listPage(token, cur.tokens[cur.tokens.length - 1]);
-      if (!r.next) {
-        page = cur.tokens.length; // past the end: show the last page instead
-        break;
+  const held = reuse && !refresh && page === 1 ? listings.get(userKey) : undefined;
+  if (held && Date.now() - held.at <= LISTING_TTL_MS) {
+    ({ ids, next } = held);
+    cur.total = held.total;
+  } else {
+    // "1-50 of 1,234". Read every time, not held with the cursor: the ids are always this
+    // moment's, so a held total goes stale the moment mail arrives and the header ends up
+    // reading "1-30 of 29". It is a label read (1 quota unit, against 5 for a page of ids),
+    // started now so it runs alongside the list rather than after it -- two calls one after
+    // the other was two round trips to Gmail on every page load. If it fails the last known
+    // total stands rather than the header losing its total.
+    const lastTotal = cur.total;
+    const totalRead = gmailGet<{ messagesTotal?: number }>(token, "/labels/INBOX", {
+      fields: "messagesTotal",
+    })
+      .then((l) => l.messagesTotal ?? lastTotal)
+      .catch(() => lastTotal);
+    try {
+      while (cur.tokens.length < page) {
+        const r = await listPage(token, cur.tokens[cur.tokens.length - 1]);
+        if (!r.next) {
+          page = cur.tokens.length; // past the end: show the last page instead
+          break;
+        }
+        cur.tokens.push(r.next);
       }
-      cur.tokens.push(r.next);
+      ({ ids, next } = await listPage(token, cur.tokens[page - 1]));
+      if (next && cur.tokens.length === page) cur.tokens.push(next);
+    } catch (e) {
+      // A stale page token: forget the cursor and walk again from page 1, once
+      if (e instanceof GmailError && e.status === 400 && !retried) {
+        cursors.delete(userKey);
+        return getInboxPage(token, userKey, requested, { ...opts, retried: true });
+      }
+      throw e;
     }
-    ({ ids, next } = await listPage(token, cur.tokens[page - 1]));
-    if (next && cur.tokens.length === page) cur.tokens.push(next);
-  } catch (e) {
-    // A stale page token: forget the cursor and walk again from page 1, once
-    if (e instanceof GmailError && e.status === 400 && !retried) {
-      cursors.delete(userKey);
-      return getInboxPage(token, userKey, requested, { ...opts, retried: true });
-    }
-    throw e;
+    cur.total = await totalRead;
+    if (page === 1) listings.set(userKey, { at: Date.now(), ids, next, total: cur.total });
   }
-
-  // "1-50 of 1,234". Read every time, not held with the cursor: the ids above are always
-  // this moment's, so a held total goes stale the moment mail arrives and the header ends up
-  // reading "1-30 of 29". It is a label read (1 quota unit, against 5 for the page of ids),
-  // and if it fails the last known total stands rather than the header losing its total.
-  cur.total = await gmailGet<{ messagesTotal?: number }>(token, "/labels/INBOX", {
-    fields: "messagesTotal",
-  })
-    .then((l) => l.messagesTotal ?? cur.total)
-    .catch(() => cur.total);
 
   const store = storeFor(userKey);
   const todo = refresh ? ids : ids.filter((id) => !fresh(store.get(id)));
@@ -361,16 +386,46 @@ export async function fetchAttachment(
   messageId: string,
   partId: string,
 ): Promise<AttachmentFile | null> {
-  let msg: GmailMessage;
+  const msg = await readMessage(token, messageId);
+  return msg ? readPart(token, messageId, msg, partId) : null;
+}
+
+/**
+ * Several attachments of one message. The message has to be read to find where each part
+ * lives, so this reads it once for all of them rather than once per attachment -- for an
+ * SI + BL pair that is a third of the calls the list of a page of shipping emails makes.
+ * A part that can't be read comes back null, without failing the others.
+ */
+export async function fetchAttachments(
+  token: string,
+  messageId: string,
+  partIds: string[],
+): Promise<Map<string, AttachmentFile | null>> {
+  const out = new Map<string, AttachmentFile | null>();
+  const msg = await readMessage(token, messageId).catch(() => null);
+  await mapPool(partIds, CONCURRENCY, async (partId) => {
+    out.set(partId, msg ? await readPart(token, messageId, msg, partId).catch(() => null) : null);
+  });
+  return out;
+}
+
+async function readMessage(token: string, messageId: string): Promise<GmailMessage | null> {
   try {
-    msg = await gmailGet<GmailMessage>(token, `/messages/${encodeURIComponent(messageId)}`, {
+    return await gmailGet<GmailMessage>(token, `/messages/${encodeURIComponent(messageId)}`, {
       format: "full",
     });
   } catch (e) {
     if (e instanceof GmailError && e.status === 404) return null;
     throw e;
   }
+}
 
+async function readPart(
+  token: string,
+  messageId: string,
+  msg: GmailMessage,
+  partId: string,
+): Promise<AttachmentFile | null> {
   // Look the part up by partId (stable). Gmail's attachmentId can change between calls.
   const part = findPart(msg.payload, partId);
   if (!part || (!part.filename && !part.body?.attachmentId)) return null;

@@ -53,8 +53,11 @@ export interface InboxPageResult extends InboxPage {
 export async function getInboxPage(
   slug: CategorySlug,
   page: number,
-  /** Read this page from the source again rather than from anything held (the Refresh button). */
-  opts: { refresh?: boolean } = {},
+  /**
+   * refresh: read this page from the source again rather than from anything held (the Refresh
+   * button). reuse: a tab switch, so a page read moments ago will do (see the Gmail source).
+   */
+  opts: { refresh?: boolean; reuse?: boolean } = {},
 ): Promise<InboxPageResult> {
   const session = await auth();
   if (await usesGmail()) {

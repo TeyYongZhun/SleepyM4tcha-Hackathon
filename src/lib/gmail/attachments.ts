@@ -4,7 +4,7 @@ import { assessShipmentDocuments, bodyClaimsAttachment } from "../demo/compare";
 import { detectDocKind, parseShipmentText } from "../demo/parse";
 import type { Email, ShipmentDocument, ShipmentFieldComparison } from "../types";
 import { mapPool } from "./api";
-import { fetchAttachment } from "./index";
+import { fetchAttachments, type AttachmentFile } from "./index";
 
 /**
  * Reads a Gmail message's attachments, identifies the shipping documents in
@@ -35,15 +35,12 @@ interface Analysed {
   data: Buffer;
 }
 
+/** Reads one attachment's downloaded bytes into a document; null when there was nothing to read. */
 async function analyseOne(
-  token: string,
-  messageId: string,
   a: Email["attachments"][number],
+  file: AttachmentFile | null | undefined,
 ): Promise<Analysed | null> {
   const ext = a.filename.split(".").pop()?.toLowerCase() ?? "";
-  if (!READABLE_EXTENSIONS.includes(ext)) return null;
-
-  const file = await fetchAttachment(token, messageId, a.id).catch(() => null);
   if (!file) return null;
 
   try {
@@ -108,11 +105,11 @@ type Analysis = Pick<
 /**
  * Keyed by message id. The inbox list and the opened email both want this, and
  * downloading the same attachments twice would double the Gmail calls for no
- * reason. Entries expire with the message cache in ./index, so a message is
- * re-read at most as often as it is re-fetched.
+ * reason. Attachments never change, so this is as long as the message cache in ./index:
+ * a page of shipping emails is analysed once, not again every few minutes.
  */
 const analysisCache = new Map<string, { at: number; value: Promise<Analysis | null> }>();
-const ANALYSIS_TTL_MS = 10 * 60_000;
+const ANALYSIS_TTL_MS = 60 * 60_000;
 /** A page is 50; this keeps a long session from growing without bound. */
 const ANALYSIS_MAX = 500;
 
@@ -144,9 +141,18 @@ export async function withShipmentAnalysis(token: string, email: Email): Promise
 }
 
 async function analyse(token: string, email: Email): Promise<Analysis | null> {
-
+  // Only what can be read is downloaded, and the message is read once for all of it
+  const readable = email.attachments.filter((a) =>
+    READABLE_EXTENSIONS.includes(a.filename.split(".").pop()?.toLowerCase() ?? ""),
+  );
+  if (!readable.length) return null;
+  const files = await fetchAttachments(
+    token,
+    email.email_id,
+    readable.map((a) => a.id),
+  );
   const analysed = (
-    await mapPool(email.attachments, CONCURRENCY, (a) => analyseOne(token, email.email_id, a))
+    await mapPool(readable, CONCURRENCY, (a) => analyseOne(a, files.get(a.id)))
   ).filter((x): x is Analysed => x !== null);
   if (!analysed.length) return null;
 
