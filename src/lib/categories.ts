@@ -85,3 +85,12 @@ export function getCategoryBySlug(slug: string): CategoryMeta | undefined {
 export function getCategoryByEmailCategory(c: EmailCategory): CategoryMeta {
   return CATEGORIES.find((m) => m.category === c) ?? FALLBACK_CATEGORY;
 }
+
+/** How many emails are in each tab, as the tab bar shows them. */
+export interface InboxCounts {
+  counts: Record<CategorySlug, number>;
+  /** false while the inbox is still being counted: the numbers so far are lower bounds */
+  done: boolean;
+  /** The inbox is bigger than what gets counted, so every number is "at least" */
+  capped: boolean;
+}

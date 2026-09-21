@@ -2,12 +2,19 @@ import "server-only";
 import { cache } from "react";
 import { auth } from "@/auth";
 import type { CategorySlug } from "./categories";
-import { CATEGORIES, getCategoryBySlug } from "./categories";
+import { CATEGORIES, getCategoryBySlug, type InboxCounts } from "./categories";
 import { ApiError, backendEnabled, request } from "./api/client";
 import { routes } from "./api/routes";
 import { loadDemoEmail, loadDemoEmails } from "./demo/load";
-import { getInboxPage as getGmailPage, getMessage, type InboxPage } from "./gmail";
+import {
+  getInboxCounts as getGmailCounts,
+  getInboxCountsNow as getGmailCountsNow,
+  getInboxPage as getGmailPage,
+  getMessage,
+  type InboxPage,
+} from "./gmail";
 import { withShipmentAnalysis } from "./gmail/attachments";
+import { wasOpened } from "./gmail/read-memory";
 import type { InboxRow } from "@/components/inbox-pane";
 import { displayName } from "./format";
 import { PAGE_SIZE } from "./paging";
@@ -46,8 +53,11 @@ export interface InboxPageResult extends InboxPage {
 export async function getInboxPage(
   slug: CategorySlug,
   page: number,
-  /** Read this page from the source again rather than from anything held (the Refresh button). */
-  opts: { refresh?: boolean } = {},
+  /**
+   * refresh: read this page from the source again rather than from anything held (the Refresh
+   * button). reuse: a tab switch, so a page read moments ago will do (see the Gmail source).
+   */
+  opts: { refresh?: boolean; reuse?: boolean } = {},
 ): Promise<InboxPageResult> {
   const session = await auth();
   if (await usesGmail()) {
@@ -57,8 +67,12 @@ export async function getInboxPage(
     // exists once the attachments have been read -- so the list has to do it too,
     // not just the opened email. Messages without attachments cost nothing and
     // the rest are cached, so opening one of these rows is then free.
+    const userKey = session!.user.id;
     const emails = await Promise.all(gmail.emails.map((e) => withShipmentAnalysis(token, e)));
-    return { ...gmail, emails, filtered: false };
+    // Gmail may still say unread (it is only told once the app has permission to change
+    // mail); whatever has been opened here stays read regardless.
+    const opened = emails.map((e) => (e.unread && wasOpened(userKey, e.email_id) ? { ...e, unread: false } : e));
+    return { ...gmail, emails: opened, filtered: false };
   }
 
   const all = filterEmails(await getEmails(), slug);
@@ -140,6 +154,30 @@ async function loadEmail(emailId: string): Promise<Email | undefined> {
 export function filterEmails(emails: Email[], slug: CategorySlug): Email[] {
   const category = getCategoryBySlug(slug)?.category;
   return category ? emails.filter((e) => e.category === category) : emails;
+}
+
+/**
+ * Tab totals for a Gmail inbox, counted in the background (see lib/gmail). Returns whatever
+ * has been counted so far; the tab bar asks again until `done`. Null when the account
+ * isn't a Gmail one (those get exact counts up front from countByCategory).
+ */
+export async function getLiveCounts(opts: { fresh?: boolean } = {}): Promise<InboxCounts | null> {
+  if (!(await usesGmail())) return null;
+  const session = await auth();
+  const token = session!.accessToken!;
+  const userKey = session!.user.id;
+  const snap = opts.fresh
+    ? await getGmailCountsNow(token, userKey)
+    : getGmailCounts(token, userKey);
+  const counts = {} as Record<CategorySlug, number>;
+  let all = 0;
+  for (const { slug, category } of CATEGORIES) {
+    if (!category) continue;
+    counts[slug] = snap?.counts[category] ?? 0;
+    all += counts[slug];
+  }
+  counts.all = all;
+  return { counts, done: snap?.done ?? false, capped: snap?.capped ?? false };
 }
 
 /** Derived from CATEGORIES, so adding a category needs no change here. */

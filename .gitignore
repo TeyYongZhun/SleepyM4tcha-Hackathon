@@ -54,3 +54,6 @@ sdoc_comparator/output/
 # COMMITTED here (the YongZhun branch ignored them). The merged repo needs the
 # 520-email dataset and the trained classifier.joblib so the app and the
 # FastAPI gateway run from a fresh clone with no extra setup.
+
+# Server-side memory of which Gmail messages have been opened (per account)
+.data/
