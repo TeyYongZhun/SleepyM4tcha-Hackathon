@@ -13,8 +13,18 @@
 let scope = "anon";
 const resets = new Set<() => void>();
 
+/** One account's key for a store. */
+export const keyFor = (base: string, owner: string) => `${base}:${owner}`;
+
 /** A store's key. Read it at the point of use: the scope is not known when modules load. */
-export const scopedKey = (base: string) => `${base}:${scope}`;
+export const scopedKey = (base: string) => keyFor(base, scope);
+
+/**
+ * The account signed in right now. Work that outlives a page -- a reply being watched -- keeps
+ * this from when it started, so what it reports goes to that account and not whoever is
+ * signed in by the time it finishes.
+ */
+export const currentScope = () => scope;
 
 /** Registers a store so whatever it is holding is dropped when the account changes. */
 export function onScopeChange(reset: () => void) {

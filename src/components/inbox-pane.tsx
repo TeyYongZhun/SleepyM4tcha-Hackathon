@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
@@ -10,17 +10,20 @@ import {
   CheckCheck,
   CheckCircle2,
   FileText,
+  Loader2,
   Paperclip,
   RefreshCw,
   UserCheck,
 } from "lucide-react";
 import { getCategoryBySlug, type CategorySlug } from "@/lib/categories";
+import { HELD_FRESH_MS, heldFirstPage, rememberFirstPage } from "@/lib/inbox-cache";
 import { PAGE_SIZE } from "@/lib/paging";
 import { setRead, useReadIds } from "@/lib/read-state";
 import { useResolvedIds } from "@/lib/resolved";
 import { REVIEW_REASON_SHORT } from "@/lib/shipment";
 import type { EmailCategory, ReviewReason } from "@/lib/types";
 import { CategoryBadge } from "./category-badge";
+import { SkeletonRows } from "./inbox-skeleton";
 import { LocalTime } from "./local-time";
 
 /** Just what a list row needs, so the pane stays light with hundreds of emails. */
@@ -70,6 +73,9 @@ export interface InboxPageData {
   filtered: boolean;
 }
 
+/** What the pane holds before it has anything to show. */
+const EMPTY_PAGE: InboxPageData = { rows: [], page: 1, hasNext: false, filtered: false };
+
 /**
  * Left pane. Stays mounted while you move between emails (it lives in the
  * category layout), and highlights whichever email the URL points at.
@@ -92,13 +98,20 @@ export function InboxPane({
 }: {
   slug: CategorySlug;
   title: string;
-  initial: InboxPageData;
+  /**
+   * The first page as the server rendered it, or null when the server left it to the browser: a
+   * Gmail tab switch, where every tab lists the same newest page and this browser already holds
+   * it (lib/inbox-cache.ts), so it is shown at once instead of being read from Gmail again.
+   */
+  initial: InboxPageData | null;
 }) {
   const { emailId } = useParams<{ emailId?: string }>();
   const activeId = emailId ? decodeURIComponent(emailId) : undefined;
   const router = useRouter();
 
-  const [view, setView] = useState<InboxPageData>(initial);
+  const [view, setView] = useState<InboxPageData>(() => initial ?? heldFirstPage()?.data ?? EMPTY_PAGE);
+  /** False until there is a page to show: rows, or a real "nothing here" */
+  const [ready, setReady] = useState(() => initial !== null || heldFirstPage() !== null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
@@ -133,6 +146,7 @@ export function InboxPane({
       );
       if (!res.ok) throw new Error((await res.text()) || `Failed (${res.status})`);
       setView((await res.json()) as InboxPageData);
+      setReady(true);
       scroller.current?.scrollTo({ top: 0 });
     } catch (e) {
       setError((e as Error).message);
@@ -156,6 +170,23 @@ export function InboxPane({
     await goTo(1, undefined, true);
     router.refresh();
   }
+
+  // Nothing from the server: show what this browser holds, and read page 1 again if nothing is
+  // held (arriving by a link) or it is old enough for new mail to have come in.
+  useEffect(() => {
+    if (initial) return;
+    const held = heldFirstPage();
+    if (held && Date.now() - held.at <= HELD_FRESH_MS) return;
+    // A tick later, and cancelled if the pane goes first (a quick second tab switch)
+    const timer = setTimeout(() => goTo(1));
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The newest page, kept for the next tab switch (only a page holding every category is)
+  useEffect(() => {
+    if (ready) rememberFirstPage(view);
+  }, [ready, view]);
 
   const resolvedIds = useResolvedIds();
   const readIds = useReadIds();
@@ -196,7 +227,7 @@ export function InboxPane({
   // just beyond it. Gives up once it has walked off either end, and settles back
   // on page 1 rather than stranding the view on whatever empty page it reached.
   useEffect(() => {
-    if (loading || shown.length > 0 || exhausted.current) return;
+    if (!ready || loading || shown.length > 0 || exhausted.current) return;
     const dir = seekDir.current;
     if (dir === 1 ? view.hasNext : view.page > 1) {
       goTo(view.page + dir);
@@ -205,15 +236,17 @@ export function InboxPane({
       if (view.page !== 1) goTo(1);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, status, loading, resolvedIds]);
+  }, [view, status, loading, resolvedIds, ready]);
 
   const first = (view.page - 1) * PAGE_SIZE + 1;
   const range = `${first}-${first + view.rows.length - 1}`;
-  const count = filterHere
-    ? `${shown.length} on this page`
-    : view.rows.length === 0
-      ? "0 messages"
-      : `${range}${view.total ? ` of ${view.total.toLocaleString()}` : ""}`;
+  const count = !ready
+    ? "Loading…"
+    : filterHere
+      ? `${shown.length} on this page`
+      : view.rows.length === 0
+        ? "0 messages"
+        : `${range}${view.total ? ` of ${view.total.toLocaleString()}` : ""}`;
 
   return (
     <section
@@ -255,7 +288,8 @@ export function InboxPane({
           loading ? "opacity-50" : ""
         }`}
       >
-        {shown.length === 0 && (
+        {!ready && <SkeletonRows />}
+        {ready && shown.length === 0 && (
           <p className="px-5 py-10 text-center text-[13.5px] text-ink-soft">
             {view.total === 0
               ? "The inbox is empty."
@@ -330,6 +364,7 @@ export function InboxPane({
                 {row.unread && (
                   <span className="inline-block h-1.5 w-1.5 rounded-full bg-copper" aria-label="Unread" />
                 )}
+                <Opening />
               </div>
             </Link>
           );
@@ -371,6 +406,19 @@ export function InboxPane({
         </div>
       </div>
     </section>
+  );
+}
+
+/**
+ * A spinner on the row that was just clicked, until its email is on screen. A Gmail email can
+ * take a moment (a server that hasn't read it yet fetches it and its attachments first), and
+ * without this the click showed nothing at all in the meantime.
+ */
+function Opening() {
+  const { pending } = useLinkStatus();
+  if (!pending) return null;
+  return (
+    <Loader2 data-loading size={12} aria-label="Opening" className="ml-auto animate-spin text-ink-soft" />
   );
 }
 

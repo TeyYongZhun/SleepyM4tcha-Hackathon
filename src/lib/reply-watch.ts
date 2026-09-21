@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from "react";
 import { addNotification, updateLatest } from "./notifications";
+import { currentScope, onScopeChange } from "./store-scope";
 
 /**
  * Watches a reply the person is writing in Gmail and reports what became of it.
@@ -77,6 +78,15 @@ function subscribe(onChange: () => void) {
   return () => listeners.delete(onChange);
 }
 
+// A watch belongs to the account that started it. Signing out and into another account without
+// the page reloading -- Sign out, then Try the demo, does exactly that -- ends it: the server can
+// no longer look in the first account's Sent mail, and a watch left running fell back to the
+// demo's rules and reported a reply into the new account's bell that it had never written.
+// Deferred, because the account changes while the dashboard is rendering.
+onScopeChange(() => {
+  queueMicrotask(() => cancelCurrent?.());
+});
+
 /**
  * The email whose reply is being watched, or null. Lets the bar show its spinner on the right
  * email, including when they navigate away and come back to it.
@@ -97,6 +107,8 @@ export function startReplyWatch(win: Window, emailId: string, to: string): void 
   let wake: (() => void) | null = null;
   let cameBack = false;
   const startedAt = Date.now();
+  /** Whose notifications this reply's result goes to, whoever is signed in by then. */
+  const owner = currentScope();
   /** When this tab lost focus to the compose window, or 0 while they are still here. */
   let awaySince = 0;
   const onLeave = () => {
@@ -164,13 +176,15 @@ export function startReplyWatch(win: Window, emailId: string, to: string): void 
      */
     const listIds = async (route: "reply-status" | "reply-bounce") => {
       const res = await fetch(`/api/${route}`);
+      if (res.status === 401) return null; // signed out: there is no Sent mail to look in any more
       if (!res.ok) throw new Error(String(res.status));
       return (await res.json()) as { supported: boolean; ids?: string[] };
     };
 
-    const poll = async (): Promise<"new" | "none" | "unsupported" | "error"> => {
+    const poll = async (): Promise<"new" | "none" | "unsupported" | "gone" | "error"> => {
       try {
         const data = await listIds("reply-status");
+        if (!data) return "gone";
         if (!data.supported) return "unsupported";
         const ids = data.ids ?? [];
         if (!baseline) {
@@ -195,7 +209,7 @@ export function startReplyWatch(win: Window, emailId: string, to: string): void 
     const pollBounce = async (address?: string): Promise<"new" | "none" | "error"> => {
       try {
         const data = await listIds("reply-bounce");
-        if (!data.supported) return "none";
+        if (!data?.supported) return "none";
         const ids = data.ids ?? [];
         if (!bounced) {
           bounced = new Set(ids);
@@ -218,7 +232,9 @@ export function startReplyWatch(win: Window, emailId: string, to: string): void 
     };
 
     // Snapshot both before they have had any chance to compose
-    if ((await poll()) === "unsupported") canCheck = false;
+    const first = await poll();
+    if (first === "gone") return finish();
+    if (first === "unsupported") canCheck = false;
     else await pollBounce();
     if (cancelled) return;
     debug(canCheck ? "watching Sent mail" : "no Sent mail to check (demo/backend)");
@@ -252,8 +268,14 @@ export function startReplyWatch(win: Window, emailId: string, to: string): void 
         const result = await poll();
         if (cancelled) return;
         debug("Sent check:", result);
-        if (result === "unsupported") canCheck = false;
-        else if (result === "new") {
+        // It could look in Sent mail when it started, so being told it can't now -- or being
+        // signed out -- means the account changed under it. Stop: carrying on switched to the
+        // demo's rules below and reported a reply nobody sent, to whoever was signed in next.
+        if (result === "unsupported" || result === "gone") {
+          debug("the account changed under the watch; stopping");
+          return finish();
+        }
+        if (result === "new") {
           try {
             win.close(); // best effort: a disowned window can't be closed from here
           } catch {
@@ -262,20 +284,20 @@ export function startReplyWatch(win: Window, emailId: string, to: string): void 
           // Report that it left the account straight away, naming wherever it actually went,
           // then keep the toast open while we watch for it coming back undelivered.
           const address = sentTo || to;
-          addNotification("sent", address, true);
+          addNotification("sent", address, true, owner);
 
           const until = Date.now() + DELIVERY_WINDOW_MS;
           while (!cancelled && Date.now() < until) {
             await sleep(BOUNCE_POLL_MS);
             if (cancelled) return;
             if ((await pollBounce(address)) === "new") {
-              updateLatest("bounced", address);
+              updateLatest("bounced", address, owner);
               return finish();
             }
           }
           // Nothing came back in the window, so the receiving server took it. That is the
           // furthest mail can be followed from outside: nobody rejected it.
-          updateLatest("delivered", address);
+          updateLatest("delivered", address, owner);
           return finish();
         }
       }
@@ -292,10 +314,10 @@ export function startReplyWatch(win: Window, emailId: string, to: string): void 
         // opens, which announced a sent reply before Gmail had finished loading.
         if ((closed && trustClosed) || cameBack) {
           debug("reporting sent (demo):", closed ? "window closed" : "came back to this tab");
-          addNotification("sent", to, true);
+          addNotification("sent", to, true, owner);
           await sleep(DEMO_DELIVERY_MS);
           if (cancelled) return;
-          updateLatest("delivered", to);
+          updateLatest("delivered", to, owner);
           return finish();
         }
       } else if ((closed && trustClosed) || cameBack) {
@@ -312,7 +334,7 @@ export function startReplyWatch(win: Window, emailId: string, to: string): void 
         // Sent mail can lag a few seconds behind the click, so give it a moment either way
         if (Date.now() - settledAt > CONFIRM_MS) {
           debug("concluding not sent:", closed ? "window closed" : "came back to this tab");
-          addNotification("not-sent", to);
+          addNotification("not-sent", to, false, owner);
           return finish();
         }
       }
@@ -320,7 +342,7 @@ export function startReplyWatch(win: Window, emailId: string, to: string): void 
     // Ran out of time with the compose window still open and nothing in Sent. Say so rather
     // than leaving the spinner on an answer that is never coming.
     debug("gave up waiting");
-    addNotification("not-sent", to);
+    addNotification("not-sent", to, false, owner);
     finish();
   })();
 }

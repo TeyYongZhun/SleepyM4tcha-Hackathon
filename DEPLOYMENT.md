@@ -280,4 +280,5 @@ Railway bills by usage while it runs.
 | Drafts read like a template                            | `GEMINI_API_KEY` missing, or `GEMINI_MODEL` pinned to `gemini-2.5-flash-lite`. Use `gemini-3.5-flash-lite`. |
 | Env change had no effect                               | Redeploy — existing deployments keep the old values.                                                               |
 | Backend unreachable in logs                            | `CLASSIFIER_API_URL` points at `localhost`. Clear it or use the Railway URL.                                     |
+| Gmail inbox slow to load, labels look rule-based       | The gateway at `CLASSIFIER_API_URL` is asleep or unreachable. After one request fails the app skips it for a minute and uses the built-in rules, so only the first few messages wait (3 s each). Keep the Railway service awake, or clear the variable. |
 | `/health` returns `emails: 0`                      | Railway root directory is set to `backend`. Clear it so it builds from the repo root.                                                               |
