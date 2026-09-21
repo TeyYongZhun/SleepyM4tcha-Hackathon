@@ -13,6 +13,13 @@ const POLL_IDLE_MS = 5000;
 /** Focus landing back here sooner than this is the window opening, not the person returning. */
 const RETURN_GUARD_MS = 1500;
 /**
+ * Only the demo decides anything from this tab regaining focus, and only after the person has
+ * actually been away in the compose window for at least this long. Glancing back while Gmail is
+ * still loading is not a reply: without a floor here the toast announced one before they had
+ * seen the compose window, let alone pressed Send.
+ */
+const MIN_AWAY_MS = 6000;
+/**
  * How long to wait for a delivery failure after the reply goes out, before calling it
  * delivered. A bounce from an address that doesn't exist is usually rejected by the receiving
  * server on the spot, so it comes back within seconds; waiting longer than this would hold up
@@ -76,18 +83,34 @@ export function ReplyBar({
     let wake: (() => void) | null = null;
     let cameBack = false;
     const startedAt = Date.now();
+    /** When this tab lost focus to the compose window, or 0 while they are still here. */
+    let awaySince = 0;
+    const onLeave = () => {
+      awaySince ||= Date.now();
+    };
     // Coming back to this tab is the likeliest moment the reply was just sent: look right away
     // (a background tab also gets its timers slowed down a lot by the browser)
     const onReturn = () => {
-      if (document.visibilityState !== "visible") return;
-      // Opening the window can bounce focus straight back here; that isn't a return
-      if (Date.now() - startedAt > RETURN_GUARD_MS) cameBack = true;
+      if (document.visibilityState !== "visible") return onLeave();
+      // A return only counts as "they went and replied" if they were gone long enough to have
+      // done it. Opening the window can bounce focus straight back here, and people click back
+      // while Gmail is still loading; neither is a sent reply.
+      if (
+        awaySince &&
+        Date.now() - awaySince > MIN_AWAY_MS &&
+        Date.now() - startedAt > RETURN_GUARD_MS
+      ) {
+        cameBack = true;
+      }
+      awaySince = 0;
       wake?.();
     };
+    window.addEventListener("blur", onLeave);
     window.addEventListener("focus", onReturn);
     document.addEventListener("visibilitychange", onReturn);
     const stop = () => {
       cancelled = true;
+      window.removeEventListener("blur", onLeave);
       window.removeEventListener("focus", onReturn);
       document.removeEventListener("visibilitychange", onReturn);
       setWaiting(false);
@@ -231,7 +254,11 @@ export function ReplyBar({
           // the compose window -- closing it, or coming back here -- is taken as sent, which
           // is what the demo is there to show. It runs through the same two steps so the demo
           // looks like the real thing, just on a timer rather than on Gmail.
-          if (closed || cameBack) {
+          //
+          // `closed` is only believed while the handle is still worth believing, exactly as on
+          // the Gmail path: a browser that disowns the pop-up reports it closed the moment it
+          // opens, which announced a sent reply before Gmail had finished loading.
+          if ((closed && trustClosed) || cameBack) {
             addNotification("sent", to, true);
             await sleep(DEMO_DELIVERY_MS);
             if (cancelled) return;
