@@ -30,7 +30,7 @@ Scored against `sdoc_classifier/data/ground_truth.json`, the file the organisers
 | **Stage 2 — SI-vs-BL verdict** (status, review reason and defect fields), all 520 emails | **520 / 520** exactly right |
 | Same, on the 20 edge cases `email_501`–`email_520` (never trained on) | 20 / 20 |
 
-The dataset holds 454 `OK`, 46 `MISMATCH` and 20 `NEEDS_REVIEW` emails (five for each review reason). 45 of the 46 mismatches are found with exactly the right fields, all 20 review cases get the right reason, and all 454 `OK` emails are left alone.
+The dataset holds 454 `OK`, 46 `MISMATCH` and 20 `NEEDS_REVIEW` emails (five for each review reason). All 46 mismatches are found with exactly the right fields, all 20 review cases get the right reason, and all 454 `OK` emails are left alone.
 
 **How to read these numbers.** The models were built and tuned on this dataset, so they show that the system does what the brief asks on the data provided, not how it will do on unseen mail. Section [Limitations](#limitations) says where it is weaker, and the [Classification on real mail](#classification-on-real-mail) note explains why a personal inbox does worse.
 
@@ -63,7 +63,9 @@ for email_id, want in truth.items():
 print(f"{len(truth)} emails:", right)
 ```
 
-It prints the `email_499` miss and `520 emails: {..., 'all four': 519}`. The category half alone can also be run with `python -m src.predict` and `python -m src.evaluate` in `sdoc_classifier/` (see its [README](sdoc_classifier/README.md)).
+It prints `520 emails: {'category': 520, 'status': 520, 'review_reason': 520, 'defect_fields': 520, 'all four': 520}` and no misses. The category half alone can also be run with `python -m src.predict` and `python -m src.evaluate` in `sdoc_classifier/` (see its [README](sdoc_classifier/README.md)).
+
+**On Windows, clone after `.gitattributes` was added.** Without it Git rewrites line endings inside the sample PDFs, which shifts the byte offsets they index themselves by, and readable documents start reporting as "couldn't be read". An older clone can be repaired with `git rm --cached -r . && git reset --hard`.
 
 > **What the submission file contains.** `python -m src.predict` writes `out/submission.json` in the organisers' format (`category`, `status`, `review_reason`, `defect_fields`, `has_defect` per email), but it fills in only the **category**; the four comparison fields are left at their defaults. The comparison results come from the comparator and the gateway. No single command yet writes the two halves into one 520-entry file, which the script above does in memory for scoring.
 

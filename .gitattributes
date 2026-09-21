@@ -1,0 +1,39 @@
+# Files Git must hand over byte for byte.
+#
+# Windows checkouts default to core.autocrlf=true, and Git guesses whether a file
+# is text. It guessed wrong on the sample PDFs -- they are mostly ASCII with no
+# early NUL byte -- and rewrote every LF inside them to CRLF. That inflated
+# email_499_BL.pdf from 2,379 bytes to 2,453 and shifted every offset in its xref
+# table, so the parser walked off the end and the app reported a readable document
+# as "couldn't be read". 26 of the 58 binary attachments were damaged this way on a
+# fresh Windows clone, which is also why the same dataset scored differently on
+# different machines.
+#
+# This changes nothing that is committed. The five deliberately corrupt and scanned
+# PDFs behind the `unreadable` review reason (email_511 to email_515) are corrupt in
+# the repository itself and still arrive corrupt, which is the point of them.
+
+# Sample documents and anything else read as bytes
+*.pdf   binary
+*.doc   binary
+*.docx  binary
+*.xls   binary
+*.xlsx  binary
+*.zip   binary
+
+# Trained models: a rewritten byte makes them fail to load
+*.joblib binary
+*.pkl    binary
+*.npy    binary
+
+# Images and fonts
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.woff  binary
+*.woff2 binary
+*.ttf   binary
+*.otf   binary

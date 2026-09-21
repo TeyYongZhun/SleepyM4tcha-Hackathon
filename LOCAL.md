@@ -244,6 +244,7 @@ code.
 | Categories look wrong / everything is General                                        | The ML service isn't running, so it fell back to keyword rules. Start terminal 2                                                                                       |
 | No SI/BL comparison on a Gmail email                                                | Needs exactly one readable SI **and** one readable BL attachment. With the ML service down you get the built-in comparison instead of the model's                       |
 | Tab numbers show "N+" or keep filling in                                            | Normal on a big inbox: only the newest 1,000 messages are counted, in the background                                                                                   |
+| Sample PDFs report "couldn't be read" on Windows                                    | A clone made before `.gitattributes` existed: Git rewrote line endings inside the PDFs and shifted their internal offsets. Repair with `git rm --cached -r . && git reset --hard` |
 | AI Draft is a short generic reply                                                   | No `GEMINI_API_KEY`, or the Gemini call failed, so the rule-based draft was used                                                                                        |
 | `403 insufficient authentication scopes`                                            | Gmail API not enabled, or `gmail.modify` missing from the consent screen, or Google reused an old grant. Revoke it at myaccount.google.com/permissions and sign in again |
 
