@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import { setStoreScope } from "@/lib/store-scope";
 import type { UserInfo } from "@/lib/types";
 
 const UserContext = createContext<UserInfo | null>(null);
@@ -13,6 +14,10 @@ export function UserProvider({
   user_info: UserInfo;
   children: React.ReactNode;
 }) {
+  // Before any child can read one: everything the browser keeps for this person -- their
+  // notifications, what they have read and resolved -- is filed under whoever is signed in,
+  // so another account's does not show up as theirs.
+  setStoreScope(user_info.id);
   return <UserContext value={user_info}>{children}</UserContext>;
 }
 

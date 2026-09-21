@@ -10,8 +10,15 @@ import {
 } from "@/lib/notifications";
 import { NOTIFICATION } from "./notification-view";
 
-/** How long a settled toast stays up, in seconds, while this tab is being looked at. */
-const DISMISS_AFTER = 3;
+/** How long a settled toast stays up, while this tab is being looked at. */
+const DISMISS_AFTER_MS = 3000;
+/**
+ * The countdown steps this often. Fine enough that the bar can be drawn straight from what is
+ * left, with no CSS transition filling in between: a transition would still be animating
+ * towards empty when the count ran out, so the toast vanished with the bar around a third
+ * full. Now the bar reaching the end and the toast closing are the same instant.
+ */
+const TICK_MS = 100;
 
 /**
  * Shows the newest notification as a bubble in the top corner. Mounted once for the whole
@@ -48,13 +55,13 @@ export function ToastHost() {
  */
 function Toast({ item, onDismiss }: { item: Notification; onDismiss: () => void }) {
   const { kind, subject, pending } = item;
-  const [left, setLeft] = useState(DISMISS_AFTER);
+  const [left, setLeft] = useState(DISMISS_AFTER_MS);
 
   useEffect(() => {
     if (pending) return;
     const id = setInterval(() => {
-      if (!document.hidden) setLeft((n) => Math.max(0, n - 1));
-    }, 1000);
+      if (!document.hidden) setLeft((n) => Math.max(0, n - TICK_MS));
+    }, TICK_MS);
     return () => clearInterval(id);
   }, [pending]);
 
@@ -100,8 +107,8 @@ function Toast({ item, onDismiss }: { item: Notification; onDismiss: () => void 
         {!pending && (
           <div aria-hidden className="h-[3px] bg-line/40">
             <div
-              className={`h-full transition-[width] duration-1000 ease-linear ${v.bar}`}
-              style={{ width: `${(left / DISMISS_AFTER) * 100}%` }}
+              className={`h-full ${v.bar}`}
+              style={{ width: `${(left / DISMISS_AFTER_MS) * 100}%` }}
             />
           </div>
         )}
