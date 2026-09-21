@@ -89,16 +89,17 @@ Go to `Vercel > your project > Settings > Environment Variables` and set:
 Then redeploy: `Deployments > ... > Redeploy`. Environment changes do not reach
 deployments that already exist.
 
-### 2.1 Blob store — needed for the demo's Import button
+### 2.1 Blob store — needed for the demo's Import and Clear buttons
 
 The demo account can replace the bundled 520-email sample with two zips of its own
-(**Import data** in the account menu). Locally those files are written to
+(**Import data** in the account menu), or empty the inbox (**Clear data**). Locally those files are written to
 `public/import`. A deployed app cannot do that: its filesystem is read-only, and
 anything written to it would be gone on the next request anyway. The files go to
 Vercel Blob instead.
 
-Skip this and everything else still works; only the Import button does not, and it
-says so rather than failing quietly.
+Skip this and everything else still works; only Import and Clear do not, and they say so
+rather than failing quietly. **Try demo data** (put the 520 sample back) and **Try the demo**
+still work, since there is nothing stored to remove.
 
 1. `Vercel > your project > Storage > Create Database > Blob`.
 2. Name it and connect it to the project.
@@ -109,9 +110,11 @@ You can confirm which one is in use: signed in as the demo account,
 `/api/import` reports `"storage":"blob"` once the token is there, and
 `"storage":"disk"` when it is not.
 
-An import is shared, not per-visitor: it replaces the sample for everyone using the
-demo account until someone presses **Reset to sample data**. Other instances of the
-app notice a new import within about ten seconds.
+An import (or a Clear) is shared, not per-visitor: it changes the inbox for everyone using
+the demo account until someone presses **Reset to sample data** or **Try demo data**.
+Pressing **Try the demo** on the landing or sign-in page also puts the sample back, so a new
+visitor never arrives at an inbox the last one cleared. Other instances of the app notice a
+change within about ten seconds (the person who made it sees it at once).
 
 Zip layout, the email record shape and the API are in [IMPORT.md](IMPORT.md).
 

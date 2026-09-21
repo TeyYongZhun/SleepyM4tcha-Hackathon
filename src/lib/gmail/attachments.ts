@@ -2,6 +2,7 @@ import "server-only";
 import { bufferToText, kindFromFilename, READABLE_EXTENSIONS } from "../demo/extract";
 import { assessShipmentDocuments, bodyClaimsAttachment } from "../demo/compare";
 import { detectDocKind, parseShipmentText } from "../demo/parse";
+import { bodyText } from "../text";
 import type { Email, ShipmentDocument, ShipmentFieldComparison } from "../types";
 import { mapPool } from "./api";
 import { fetchAttachments, type AttachmentFile } from "./index";
@@ -135,7 +136,20 @@ function cachedAnalysis(emailId: string, run: () => Promise<Analysis | null>) {
  * shipping emails once.
  */
 export async function withShipmentAnalysis(token: string, email: Email): Promise<Email> {
-  if (!email.attachments.length) return email;
+  if (!email.attachments.length) {
+    // Nothing to read, but that can be the finding: a BL Comparison whose body says "attached
+    // are the SI and draft BL" with nothing attached is a missing attachment for someone to
+    // chase. The bundled inbox reports it (see demo/load.ts); a real one has to as well, or the
+    // list, the panel and the export would all call it fine.
+    const verdict =
+      email.category === "bl_comparison"
+        ? assessShipmentDocuments([], {
+            expectPair: true,
+            bodyClaimsAttachment: bodyClaimsAttachment(bodyText(email.body, email.body_type)),
+          })
+        : null;
+    return verdict ? { ...email, ...verdict } : email;
+  }
   const analysis = await cachedAnalysis(email.email_id, () => analyse(token, email));
   return analysis ? { ...email, ...analysis } : email;
 }

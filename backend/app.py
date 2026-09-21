@@ -47,7 +47,7 @@ from sdoc_classifier.src.predict import classify            # noqa: E402
 
 import main as comparator                                   # noqa: E402  (sdoc_comparator/src/main.py)
 
-from .assemble import comparison_json, email_json, kind_of, summary   # noqa: E402
+from .assemble import comparison_json, email_json, kind_of, submission_entry, summary   # noqa: E402
 
 log = logging.getLogger("gateway")
 
@@ -154,6 +154,24 @@ def get_email(email_id: str):
         raise HTTPException(status_code=404, detail=f"No such email: {email_id}")
     prediction = _predictions()[email_id]
     return email_json(record, prediction, _compare(record, prediction))
+
+
+@lru_cache(maxsize=1)
+def _submission() -> dict:
+    """Every email of the demo inbox as a ground_truth.json-shaped entry. Compares every BL
+    pair, so it is slow once and instant after."""
+    preds = _predictions()
+    return {
+        eid: submission_entry(preds[eid], _compare(record, preds[eid]), comparator.TO_GT_FIELD)
+        for eid, record in _records().items()
+    }
+
+
+@app.get("/submission")
+def submission():
+    """The whole inbox as a submission (category + SI-vs-BL verdict per email), ready to be
+    scored against ground_truth.json. The frontend's Export button asks for this in backend mode."""
+    return _submission()
 
 
 @app.get("/api/demo-attachments/{name}")
