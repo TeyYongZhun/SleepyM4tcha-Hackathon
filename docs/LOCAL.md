@@ -1,6 +1,6 @@
 # Running WayBoxAI locally
 
-For what the project is, see [README.md](README.md). For the deployed site, see
+For what the project is, see [README.md](../README.md). For the deployed site, see
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
 The app is **two processes**: the Next.js website, and a Python service that runs

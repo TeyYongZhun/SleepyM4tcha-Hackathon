@@ -48,7 +48,7 @@ export function SignInButton({
 
 /**
  * A fresh demo starts on the bundled sample. What the demo shows is one shared setting (see
- * IMPORT.md), so without this a visitor could arrive to an inbox the last one had imported or
+ * docs/IMPORT.md), so without this a visitor could arrive to an inbox the last one had imported or
  * cleared. Dropping the import puts the sample back for everyone using the demo account; if
  * the store cannot be reached the demo still opens, just on whatever it was last showing.
  */

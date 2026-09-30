@@ -1,7 +1,7 @@
 # Deploying WayBoxAI
 
 Production: [https://wayboxai.vercel.app](https://wayboxai.vercel.app). For what the project is see
-[README.md](README.md); for running it on your machine see [LOCAL.md](LOCAL.md).
+[README.md](../README.md); for running it on your machine see [LOCAL.md](LOCAL.md).
 
 One repo, two deployments:
 

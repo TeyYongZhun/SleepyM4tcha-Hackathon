@@ -6,7 +6,7 @@
 
 Built for the **Averis × Monash Hackathon 2026** by Team **SleepyM4tcha**
 
-### [▶ Live demo](https://wayboxai.vercel.app) · [📄 Full report (PDF)](WayBoxAI-Report.pdf) · [💻 Run locally](LOCAL.md)
+### [▶ Live demo](https://wayboxai.vercel.app) · [📄 Full report (PDF)](docs/WayBoxAI-Report.pdf) · [💻 Run locally](docs/LOCAL.md)
 
 </div>
 
@@ -98,7 +98,7 @@ Browser ─► Next.js website ─┬─► Gmail API (your inbox)
 
 ## 💻 Run it locally
 
-You need **Node 20+** and **Python 3.13+**. The full guide is in [LOCAL.md](LOCAL.md).
+You need **Node 20+** and **Python 3.13+**. The full guide is in [LOCAL.md](docs/LOCAL.md).
 
 ```bash
 # one-time setup
@@ -178,13 +178,27 @@ The category model can also be checked on its own with `python -m src.predict` a
 - Attachments are processed in memory and never saved.
 - Email text goes to Gemini only when you press Reply with **AI Draft** switched on.
 
+## 🗂️ Project structure
+
+```
+├── src/               Next.js website: inbox UI, Gmail, replies, notifications
+├── backend/           FastAPI gateway that serves both models to the website
+├── sdoc_classifier/   ML model 1: sorts an email into 1 of 5 categories
+├── sdoc_comparator/   ML model 2: compares the SI against the BL
+├── public/dummy/      the 520 sample emails and attachments used by the demo
+├── data/sample_docs/  SI/BL sample pairs for evaluating the comparator
+├── docs/              setup guides and the full report (PDF)
+├── requirements.txt   Python dependencies
+└── package.json       website dependencies
+```
+
 ## 📚 More docs
 
 | Doc | What's in it |
 |---|---|
-| [WayBoxAI-Report.pdf](WayBoxAI-Report.pdf) | The full technical report: architecture, challenges, roadmap |
-| [LOCAL.md](LOCAL.md) | Local setup, environment variables, troubleshooting |
-| [DEPLOYMENT.md](DEPLOYMENT.md) | Deploying to Vercel and Railway |
-| [IMPORT.md](IMPORT.md) | Loading your own inbox into the demo |
+| [WayBoxAI-Report.pdf](docs/WayBoxAI-Report.pdf) | The full technical report: architecture, challenges, roadmap |
+| [LOCAL.md](docs/LOCAL.md) | Local setup, environment variables, troubleshooting |
+| [DEPLOYMENT.md](docs/DEPLOYMENT.md) | Deploying to Vercel and Railway |
+| [IMPORT.md](docs/IMPORT.md) | Loading your own inbox into the demo |
 | [sdoc_classifier/](sdoc_classifier/README.md) | The email category model |
 | [sdoc_comparator/](sdoc_comparator/README.md) | The SI-vs-BL comparator |

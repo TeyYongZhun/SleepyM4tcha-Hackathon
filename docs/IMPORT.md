@@ -5,7 +5,7 @@ The demo account can replace the bundled 520-email dataset with an inbox of your
 account only — a signed-in Google user is reading a real mailbox, which has nothing to
 replace.
 
-For the rest of the project see [README.md](README.md), [LOCAL.md](LOCAL.md) and
+For the rest of the project see [README.md](../README.md), [LOCAL.md](LOCAL.md) and
 [DEPLOYMENT.md](DEPLOYMENT.md).
 
 ## What it does
